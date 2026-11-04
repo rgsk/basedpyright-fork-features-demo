@@ -8,4 +8,25 @@ dependencies = []
 [dependency-groups]
 dev = [
     "ipykernel>=7.4.0",
+    # format and fixes on save in VS Code (rgsk.ruffgrid). No basedpyright here: its
+    # basedpyright-langserver would replace the .venv/bin wrapper that runs the local fork
+    "ruff>=0.16.2",
+    "ruffgrid",
 ]
+
+[tool.basedpyright]
+typeCheckingMode = "standard"
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+# UP037 would unquote the keys of frozendict[{'name': str}] (it reads them as forward refs)
+ignore = ["UP037"]
+
+[tool.ruff.format]
+quote-style = "single"
+
+[tool.uv.sources]
+ruffgrid = { path = "../ruffgrid", editable = true }
