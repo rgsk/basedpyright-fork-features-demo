@@ -5,7 +5,7 @@ type when run). Hover any expression to see its type. Kept as a .py file because
 no basedpyright diagnostics in notebooks.
 """
 
-from typing import Literal, TypedDict, Unpack, reveal_type
+from typing import TypedDict, Unpack, reveal_type
 
 # %% ✅ Works today
 user = frozendict(name='rahul', age=27)
@@ -38,18 +38,8 @@ reveal_type(make()[0]['age'])  # int
 
 # Hover, reveal_type and error messages all show the shape
 reveal_type(user)  # frozendict[{'name': str, 'age': int}]
-
-# The shape can be written in annotations: frozendict[{'key': type, ...}] (keys are exact)
-type User = frozendict[{'name': str, 'age': int}]  # noqa: F821 (ruff reads the keys as names)
-
-
-def load() -> User:  # a declared return type that keeps the shape
-    return frozendict(name='rahul', age=27)
-
-
-reveal_type(load()['age'])  # int
-missing: User = frozendict(name='rahul')  # error: "age" is required in "User"
-extra: User = frozendict(name='rahul', age=27, city='delhi')  # error: "city" is undefined
+# That spelling is display only: in an annotation it's an error, as in every other checker.
+# Code must not need the fork; to declare a shape, use a class (TypedDict, NamedTuple, dataclass).
 
 # %% ✅ Merging keeps the shape (the right side wins, as at runtime)
 defaults = frozendict(lr=1e-3, epochs=10)
@@ -61,7 +51,7 @@ reveal_type(frozendict(**defaults, batch=32))  # ... 'batch': int}]
 cfg2 = defaults
 cfg2 |= {'epochs': 20}
 reveal_type(cfg2['epochs'])  # int
-reveal_type({'epochs': 20} | defaults)  # dict[str, int | float]: a dict on the left makes a dict
+reveal_type({'epochs': 20} | defaults)  # dict[{'epochs': int, 'lr': float}]: a dict on the left
 
 # %% ✅ .get() and .copy(): every key in the shape is always present
 reveal_type(user.get('age'))  # int (the default is never used)
@@ -77,17 +67,10 @@ except AttributeError as e:
     print('AttributeError:', e)
 
 
-# %% Declared return types: declare the shape to keep it
+# %% Declared return types drop the shape (an inferred one keeps it, see make() above)
 
 
-def make_user() -> frozendict[{'name': str, 'age': int}]:
-    return frozendict(name='a', age=1)
-
-
-reveal_type(make_user()['age'])  # int
-
-
-def make_user_plain() -> frozendict[str, str | int]:  # no shape declared: keys are unknown
+def make_user_plain() -> frozendict[str, str | int]:  # the declared type is what callers see
     return frozendict(name='a', age=1)
 
 
@@ -124,31 +107,16 @@ match user:
         reveal_type(user_age)  # int (TypedDict: int)
 
 
-# Unions of shapes narrow by a literal field or by key (tagged records)
-type Circle = frozendict[{'kind': Literal['circle'], 'radius': float}]  # noqa: F821
-type Square = frozendict[{'kind': Literal['square'], 'side': float}]  # noqa: F821
-
-
-def area(shape: Circle | Square) -> float:
-    if shape['kind'] == 'circle':
-        reveal_type(shape)  # frozendict[{'kind': Literal['circle'], 'radius': float}]
-        return 3.14 * shape['radius'] ** 2
-    return shape['side'] ** 2  # narrowed to Square
-
-
-def describe(shape: Circle | Square) -> float:
-    if 'radius' in shape:  # a shape's keys are exact, so this narrows too
-        return shape['radius']
-    return shape['side']
-
-
-# A literal value stays literal where the expected type needs it ('circle' isn't widened to str)
-circle: Circle = frozendict(kind='circle', radius=1.0)
-print(area(circle), describe(frozendict(kind='square', side=2.0)))
-
-# Key completion while building one whose type is declared (try it in the editor):
-#   typing  {  in  u: User = frozendict({   offers 'name', 'age'
-#   typing  (  in  u: User = frozendict(    offers name=, age=
+# A union of shapes narrows by key: a frozendict's keys are exact (TypedDict: only if closed)
+shape = (
+    frozendict(kind='circle', radius=1.0)
+    if user['age'] > 18
+    else frozendict(kind='square', side=2.0)
+)
+if 'radius' in shape:
+    reveal_type(shape['radius'])  # float
+else:
+    reveal_type(shape['side'])  # float
 
 # %% ✅ fromkeys with literal keys: each key gets the value's type (None without one)
 reveal_type(
@@ -158,7 +126,8 @@ reveal_type(
 reveal_type(frozendict(**user, **frozendict.fromkeys(['lr', 'momentum'], 0.0)))
 #   frozendict[{'name': str, 'age': int, 'lr': float, 'momentum': float}]
 
-# %% No shape by design: built from a dict (its keys aren't known to the checker)
+# %% No shape by design: built from a dict (the checker only knows the keys it has seen,
+# and a frozendict's keys must be exact)
 d = {'a': 1}
 reveal_type(frozendict(d)['a'])  # int via _VT, but a typo key would not be flagged
 

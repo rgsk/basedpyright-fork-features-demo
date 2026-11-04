@@ -1,0 +1,134 @@
+"""Plain dicts remember their keys (basedpyright fork; see README.md).
+
+Stock basedpyright, in this project (typeCheckingMode = "standard", so
+strictDictionaryInference is off), shows dict[str, Unknown] for these dicts and Unknown
+for every read.
+
+The rule:
+    A dict literal remembers its keys. Writes in the same function update that memory.
+    Wherever the checker can't follow the dict, it is a plain dict[str, ...] as today.
+
+Hover, reveal_type and errors print the known keys as dict[{'key': type, ...}]. That spelling
+is display only: in an annotation it's an error, as in every other checker. Code must not need
+the fork; to declare a shape, use a class (TypedDict, NamedTuple, dataclass).
+No new errors, except where a read is now precise and the code is really wrong.
+
+Each reveal_type(...) shows the checker's result as a note in the editor (and prints the runtime
+type when run). Hover any expression to see its type.
+"""
+
+from typing import reveal_type
+
+# %% 🆕 A dict literal remembers its keys, and each key has its own type
+user = {'name': 'rahul', 'age': 27, 'details': {'sex': 'male'}}
+reveal_type(user)  # dict[{'name': str, 'age': int, 'details': dict[{'sex': str}]}]
+reveal_type(user['name'])  # str
+reveal_type(user['age'])  # int
+reveal_type(user['details']['sex'])  # str (nested literals too)
+
+# dict(...) with keyword arguments works the same way
+cfg = dict(lr=1e-3, layers=(64, 64))
+reveal_type(cfg)  # dict[{'lr': float, 'layers': tuple[int, int]}]
+
+# Completion: type  user['n  and the editor offers 'name' (already works today)
+
+# A bug you'd hit at runtime now shows up in the editor
+try:
+    user['age'].upper()  # 🆕 error: Cannot access attribute "upper" for class "int"
+except AttributeError as e:
+    print('AttributeError at runtime too:', e)
+
+# %% 🆕 Writes in the same function update the known keys
+# Writes are checked as today: against the dict's value type (Unknown here, as the literal mixes
+# types; a literal like {'x': 0} makes dict[str, int], so writing a str to it is an error)
+user['name'] = 2  # changes the key's type
+reveal_type(user)  # dict[{'name': int, 'age': int, 'details': dict[{'sex': str}]}]
+user['joker'] = 'jhi'  # adds a key
+reveal_type(user['joker'])  # str
+del user['details']  # removes a key
+reveal_type(user)  # dict[{'name': int, 'age': int, 'joker': str}]
+
+# Methods with literal keys update them too
+user.update(city='delhi')
+user |= {'pin': 110001}
+reveal_type(user)  # dict[{'name': int, 'age': int, 'joker': str, 'city': str, 'pin': int}]
+user.pop('pin')
+reveal_type(user.get('city'))  # str
+reveal_type(user.copy())  # dict[{'name': int, 'age': int, 'joker': str, 'city': str}]
+
+# Building new dicts merges the keys (the right side wins, as at runtime)
+reveal_type({**user, 'age': '27'})  # dict[{'name': int, 'age': str, 'joker': str, 'city': str}]
+reveal_type(user | {'age': 28.5})  # dict[{'name': int, 'age': float, 'joker': str, 'city': str}]
+
+# %% 🆕 Branches: a key keeps every type it can have; a key set in one branch only is forgotten
+point = {'x': 0, 'y': 0, 'label': 'origin'}
+if len(user) > 3:
+    point['x'] = 'far'
+    point['color'] = 'red'
+reveal_type(point)  # dict[{'x': str | int, 'y': int, 'label': str}] ('color' may be missing)
+
+# %% 🆕 Unknown keys: no error, you get today's type
+try:
+    reveal_type(user['nme'])  # Unknown, no error (it's a plain dict: some code may have added it)
+except KeyError as e:
+    print('KeyError at runtime:', e)
+
+# A write with a key the checker can't read forgets every key: it could have changed any of them
+scores = {'math': 90, 'art': 75}
+for subject in ['math', 'art']:
+    scores[subject] = 100
+reveal_type(scores)  # dict[str, int] (plain, as today)
+scores['math'] = 'A'  # error, as today: "Literal['A']" is not assignable to "int"
+
+# %% 🆕 Inferred return types keep the keys: the dict is new, nobody else has changed it
+
+
+def make():
+    d = {'name': 'rahul', 'age': 27}
+    d['admin'] = False
+    return d
+
+
+reveal_type(make())  # dict[{'name': str, 'age': int, 'admin': bool}]
+reveal_type(make()['age'])  # int
+
+# %% Where the checker can't follow the dict: plain dict[str, ...], as today
+
+
+class Settings:
+    def __init__(self) -> None:
+        self.cfg = {'debug': False, 'level': 'info'}
+
+    def enable(self) -> None:
+        self.cfg['debug'] = 'yes'  # another method can change any key
+
+    def show(self) -> None:
+        reveal_type(self.cfg)  # dict[str, Unknown] (plain: attributes don't remember keys)
+
+
+counters = {'hits': 0}
+
+
+def bump() -> None:
+    reveal_type(counters)  # dict[str, int] (plain: a global read inside a function)
+
+
+# %% ⚠️ Known hole: a call that changes the dict isn't seen (pyright's narrowing has the same one)
+
+
+def rename(d: dict[str, str | int]) -> None:
+    d['name'] = 5
+
+
+stale = {'name': 'rahul', 'age': 27}
+rename(stale)
+reveal_type(stale['name'])  # str, but it's 5 at runtime
+
+# %% ❌ Not done (by design)
+
+# No shape annotations: declare a shape that crosses functions with a class instead, e.g.
+#   class User(TypedDict): name: str; age: int
+# A remembered dict isn't assignable to a TypedDict: `t: User = user` errors as today
+#   (assigning the literal directly works)
+# No errors for a typo'd key or for writes on a remembered dict: for TS-style errors use a
+#   TypedDict, or, enforced at runtime, maybe a sealeddict package later

@@ -1,99 +1,130 @@
 # latest-python-features
 
-A Python 3.15 playground. Its main use so far is trying out the built-in `frozendict` (PEP 814), along with a
-local basedpyright fork that gives each key of a frozendict its own type.
+A Python 3.15 playground. Its main use so far is a local basedpyright fork that gives each key of a dict or a
+`frozendict` (PEP 814) its own type, inferred from how the dict is built.
 
-## frozendict with per-key types (basedpyright fork)
+**The rule for the fork: code must never need it.** It only infers; it adds no new syntax. Other checkers see plain
+`dict[str, ...]` and `frozendict[str, ...]` types and lose only precision. To declare a shape, use a class
+(`TypedDict`, `NamedTuple`, `dataclass`), which every checker understands.
+
+| Demo file | What it shows | Intended errors |
+|---|---|---|
+| [frozendict_demonstrations.py](frozendict_demonstrations.py) | frozendicts: exact shapes, typo'd keys are errors | 2 |
+| [dict_demonstrations.py](dict_demonstrations.py) | plain dicts remember their keys; writes update them | 2 |
+
+Each `reveal_type(...)` line has the checker's result in a comment, each intended error is marked, and both files
+run as-is.
+
+## frozendict with per-key types
 
 Stock basedpyright types `frozendict(name='rahul', age=27)` as `frozendict[str, str | int]`, so every key reads as
 `str | int`. A frozendict can't change after it's built, so the fork records each key's own type (its *shape*) and
-uses it everywhere.
+uses it everywhere. The keys are exact: a frozendict has exactly the keys in its shape.
 
-**Try it:** [demonstrations.py](demonstrations.py). Each `reveal_type(...)` line has the checker's result in a
-comment, and the file runs as-is. It has 4 intended errors, each marked in a comment.
+| Feature | Example | Section in `frozendict_demonstrations.py` |
+|---|---|---|
+| Per-key types | `user['age']` is `int`, `user['name']` is `str` | Works today |
+| Typo'd keys are errors | `user['nme']`: *Could not access item in frozendict* | Works today |
+| Key completion | typing `user[` offers `"name"`, `"age"` | Works today |
+| Key hover | hovering `'name'` in `user['name']` shows `(key) name: str`, as for a TypedDict key | Works today |
+| Shapes print as types | hover, errors, `reveal_type`: `frozendict[{'name': str, 'age': int}]`, also nested | Works today |
+| Inferred return types keep the shape | `def make(): return frozendict(...)` | Works today |
+| Merging keeps the shape | `a \| b`, `a \| {...}`, `a \|= b`, `frozendict(a, k=v)`, `frozendict({**a, ...})`, `frozendict(**a, ...)` | Merging keeps the shape |
+| `.get()` and `.copy()` | `.get('age')` is `int`; `.get('nme')` is `None` (no error); `.copy()` keeps the shape | .get() and .copy() |
+| `**` unpacking | `greet(**user)` checks each key against its own parameter, also against `**kwargs: Unpack[TD]` | Like a TypedDict |
+| `match` patterns | `case {'age': v}` gives `v: int` | Like a TypedDict |
+| Narrowing by key | `if 'radius' in shape:` narrows a union of shapes | Like a TypedDict |
+| `fromkeys` | `frozendict.fromkeys(['lr', 'momentum'], 0.0)` is `{'lr': float, 'momentum': float}` | fromkeys |
 
-### What works
-
-| Status | Feature | Example | Section in `demonstrations.py` |
-|---|---|---|---|
-| ✅ | Per-key types | `user['age']` is `int`, `user['name']` is `str` | Works today |
-| ✅ | Typo'd keys are errors | `user['nme']`: *Could not access item in frozendict* | Works today |
-| ✅ | Key completion | typing `user[` offers `"name"`, `"age"` | Works today |
-| ✅ | Key hover | hovering `'name'` in `user['name']` shows `(key) name: str`, as for a TypedDict key | Works today |
-| ✅ | Shapes print as types | hover, errors, `reveal_type`: `frozendict[{'name': str, 'age': int}]`, also nested (`tuple[frozendict[{...}], int]`) | Works today |
-| ✅ | Shapes in annotations | `type User = frozendict[{'name': str, 'age': int}]`, `def load() -> User` | Works today; Declared return types |
-| ✅ | Exact keys | assigning to `User` with a missing, extra or wrong-typed key is an error | Works today |
-| ✅ | Merging keeps the shape | `a \| b`, `a \| {...}`, `a \|= b`, `frozendict(a, k=v)`, `frozendict({**a, ...})`, `frozendict(**a, ...)` | Merging keeps the shape |
-| ✅ | `.get()` and `.copy()` | `.get('age')` is `int`; `.get('nme')` is `None` (no error); `.copy()` keeps the shape | .get() and .copy() |
-| ✅ | `fromkeys` | `frozendict.fromkeys(['lr', 'momentum'], 0.0)` is `{'lr': float, 'momentum': float}`; merges into other shapes | fromkeys |
-| ✅ | `**` unpacking | `greet(**user)` checks each key against its own parameter, also against `**kwargs: Unpack[TD]` | Like a TypedDict |
-| ✅ | `match` patterns | `case {'age': v}` gives `v: int` | Like a TypedDict |
-| ✅ | Union narrowing | `if s['kind'] == 'circle':` and `if 'radius' in s:` narrow `Circle \| Square` to `Circle` | Like a TypedDict |
-| ✅ | Tagged records | `frozendict(kind='circle', ...)` keeps `Literal['circle']` where a `Circle` is expected | Like a TypedDict |
-| ✅ | Completion while building | typing `{` or `(` in `u: User = frozendict(` offers the shape's keys | Like a TypedDict |
+A declared type is what callers see: `def f() -> frozendict[str, int]` has no shape at its call sites.
 
 ### Python < 3.15: the `frozendict` package
 
 Before 3.15 there's no built-in `frozendict`, but the [frozendict](https://pypi.org/project/frozendict/) package on
 PyPI provides one (`from frozendict import frozendict`). The fork treats it like the built-in, so everything above
-works with it, including `frozendict[{...}]` annotations, which the package accepts at runtime on 3.14.
+works with it.
 
 Only what the built-in also has gets per-key types, so moving to 3.15 later just means dropping the import. The
 package's own `.set()` and `.delete()` keep its stub's plain types; use `user | {'key': value}` instead of `.set()`.
 `~/Documents/codes/ml/dream-robot` (Python 3.14) uses it: see `rough/scratch.py` there.
 
-### Design decisions
+## dict: the keys the checker has seen
 
-- **Shape notation `frozendict[{'name': str}]`**: square brackets like the rest of typing, with quoted keys. It's
-  the only spelling that is valid Python at runtime, and it mirrors the draft inline TypedDict syntax
-  (PEP 764, `TypedDict[{'name': str}]`). An unquoted `frozendict[{name: str}]` raises `NameError` as soon as
-  anything reads the annotation.
-- **Keys are exact, and always present.** `'age': int | None` means the key is there and its value may be
-  `None`, as in a TypedDict. There's no `NotRequired`, so `user['key']` is always safe and `len()` matches the
-  shape.
-- **The checker reports an error only where the code would fail at runtime.** `user['nme']` raises `KeyError`,
-  so it's an error. `user.get('nme')` returns `None` at runtime, so it isn't an error; its type is exactly
-  `None`, and misuse such as `.upper()` is reported where it would actually fail.
-- **No shape when the keys can't be known**: `frozendict(some_dict)`, merging with an unshaped side, or
-  `frozendict(pairs)` from `(key, value)` pairs (real code has them in a variable, e.g. `zip(keys, values)`).
-- **Shapes come only from frozendicts, never from a TypedDict**, even a closed one (PEP 728): a TypedDict is a
-  plain `dict` at runtime, so its keys are only the checker's promise (ignored errors, `cast`, `json.loads` with
-  extra fields), and an exact shape built from it could be wrong about the actual value.
-- **Rejected:** `frozendict[SomeTypedDict]`, a `FrozenDict` base-class package (a frozen dataclass covers
-  that), and a copyable `class _(TypedDict)` block in hover (replaced by printing the shape inline).
+A dict can change, so its shape can't be exact. The fork uses one rule:
 
-### Known gaps
+> A dict literal remembers its keys. Writes in the same function update that memory. Wherever the checker can't
+> follow the dict, it is a plain `dict[str, ...]`, as today.
+
+| Feature | Example | Section in `dict_demonstrations.py` |
+|---|---|---|
+| Per-key types, also nested | `user['age']` is `int`, `user['details']['sex']` is `str`; `dict(lr=1e-3)` too | A dict literal remembers its keys |
+| Shapes print as types | hover on `user`: `dict[{'name': str, 'age': int}]` | A dict literal remembers its keys |
+| Writes update the shape | `user['name'] = 2` changes the key's type, `user['joker'] = ...` adds a key, `del` removes one | Writes in the same function |
+| Methods with literal keys | `.update(k=v)`, `\|=`, `.pop('k')`, `.setdefault(...)`, `.clear()`; `.get()`, `.copy()`, `{**d}`, `d \| {...}` keep it | Writes in the same function |
+| Branches | after an `if`, a key keeps every type it can have; a key set in one branch only is forgotten | Branches |
+| Keys the checker can't read | `scores[subject] = 100` forgets every key | Unknown keys |
+| Inferred return types keep the shape | `def make(): d = {...}; ...; return d` | Inferred return types |
+| Plain where it can't follow | attributes (`self.cfg`), globals read in a function, dicts inside lists or tuples | Where the checker can't follow |
+| Key completion | typing `user[` offers the keys, also for `make()[` | (try it in the editor) |
+
+It never adds errors by itself: an unknown key reads as today's type, and writes are checked against the dict's
+value type, as today. The only new errors come from precise reads, like `user['age'].upper()` on an `int`.
+
+**Known hole**, the same one pyright accepts for `d['k'] = v` narrowing: a call that changes the dict, like
+`rename(user)` or `user.update(other)` through an alias, isn't seen, so the shape can be stale.
+
+## Design decisions
+
+- **No shape annotations.** `frozendict[{'name': str}]` and `dict[{'name': str}]` are display only; in an
+  annotation they're errors, as in every other checker. Annotations would make code require the fork. The draft
+  inline `TypedDict[{...}]` (PEP 764) also raises `TypeError` at runtime on 3.15 wherever it's evaluated. Shapes
+  that cross functions are declared with a class instead.
+- **The checker reports an error only where the code would fail at runtime.** `user['nme']` on a frozendict raises
+  `KeyError`, so it's an error. `user.get('nme')` returns `None`, so it isn't; its type is exactly `None`, and
+  misuse such as `.upper()` is reported where it would actually fail.
+- **A frozendict's keys are exact, and always present.** `'age': int | None` means the key is there and its value
+  may be `None`. There's no `NotRequired`, so `user['key']` is always safe.
+- **A frozendict's shape comes only from what it was built with.** Not from a TypedDict (a plain `dict` at runtime,
+  so its keys are only a promise) and not from a dict's remembered keys (unseen code may have changed them):
+  `frozendict(some_dict)` has no shape. Neither does merging with an unshaped side, or building from
+  `(key, value)` pairs.
+- **A dict's shape is advisory.** It never restricts what can be assigned to the dict or passed from it, and
+  `'k' in d` doesn't narrow it.
+- **Rejected:** `dict[{...}]`/`frozendict[{...}]` annotations (dropped 2026-11-05), `frozendict[SomeTypedDict]`,
+  a `FrozenDict` base-class package (a frozen dataclass covers that), and a `class _(TypedDict)` block in hover.
+- **Later, maybe:** a `sealeddict` package, a dict subclass whose keys can't be added or removed (checked at
+  runtime too), for TS-style errors on writes.
+
+## Known gaps
 
 - **Notebooks:** VS Code shows no basedpyright diagnostics in `.ipynb` files (an upstream pull-diagnostics issue;
-  the server computes them). Use `.py` files.
-- **Ruff:** rule UP037's auto-fix unquotes the keys in annotations and breaks the code, so it's disabled in
-  [pyproject.toml](pyproject.toml). F821 still flags the keys as undefined names. Ruff special-cases
-  `TypedDict[{...}]` but not `frozendict[{...}]`.
+  the server computes them). Hover and completion work. Use `.py` files to see errors.
 - **Literals in tuples:** `frozendict(size=(1, 2))` keeps `tuple[Literal[1], Literal[2]]`, because stock pyright
-  solves the value type that way for keyword arguments (`dict(size=(1, 2))` does the same). A dict display
-  `frozendict({'size': (1, 2)})` gives `tuple[int, int]`.
-- **Other checkers:** mypy, Pylance and stock basedpyright report errors on the `frozendict[{...}]` line itself,
-  for example on a `type User = ...` alias.
+  solves the value type that way for keyword arguments. A dict display `frozendict({'size': (1, 2)})` gives
+  `tuple[int, int]`. (`dict(size=(1, 2))` is widened to `tuple[int, int]`.)
+- **Standard mode:** with `typeCheckingMode = "standard"` (this project), `strictDictionaryInference` is off, so
+  stock basedpyright types a dict literal with mixed values as `dict[str, Unknown]`. The fork's shapes still give
+  each key its type; the dict's value type stays `Unknown`, so writes aren't checked.
 
 ## Setup
 
-- **The fork:** `../basedpyright-frozendict` (local only), two branches on basedpyright `main`:
-  - `frozendict-literal-keys`, the upstream candidate (10 commits): a typeshed stub fix, per-key inference, shape
-    notation and annotations, merging, `.get()`/`.copy()`, key hover, `**` unpacking and `match` patterns,
-    narrowing and tagged records, completion while building, and `fromkeys`.
-  - `frozendict-pypi`, one commit on top: support for the PyPI package. **Keep this one checked out and build
-    from it**, so every project gets both.
+- **The fork:** `../basedpyright-frozendict` (local only), branches stacked on basedpyright `main`:
+  - `frozendict-literal-keys`: the frozendict support (still includes the `frozendict[{...}]` annotations, which
+    were dropped later in the stack).
+  - `frozendict-pypi`: support for the PyPI package.
+  - `dict-literal-entries`: plain dicts remember their keys.
+  - `drop-frozendict-annotations`: removes the `frozendict[{...}]` annotations. **Build from the top of the stack**,
+    so every project gets everything.
 
-  Changes to the built-in support go on `frozendict-literal-keys`; then `git rebase frozendict-literal-keys` on
-  `frozendict-pypi`. Only PyPI-specific changes go on `frozendict-pypi`. Rebuild with
-  `npx pnpm@11.21.0 run build:cli:dev` in the fork, then reload VS Code.
+  Rebuild with `npx pnpm@11.21.0 run build:cli:dev` in the fork, then reload VS Code. Run tests one worker at a
+  time (`jest --runInBand`); a full parallel run can take the machine down.
 - **VS Code runs the fork** through the wrapper `.venv/bin/basedpyright-langserver` (with
   `basedpyright.importStrategy: fromEnvironment`). Delete the wrapper to go back to the bundled basedpyright.
   The usual window is the `../frozendict-dev.code-workspace` workspace. dream-robot has the same wrapper, with
   its stock script saved next to it as `basedpyright-langserver.stock`. A `uv sync` that reinstalls basedpyright
   overwrites a wrapper.
 - **Comparing against stock basedpyright:** open `../playground-stock` in a second window. It has basedpyright
-  1.40.2 from PyPI and symlinks to the demo files. (There's one basedpyright server per window, so the two can't
+  1.40.2 from PyPI and symlinks to both demo files. (There's one basedpyright server per window, so the two can't
   share a workspace.)
 - **Checking from the shell:**
-  `node ../basedpyright-frozendict/packages/pyright/index.js -p pyproject.toml demonstrations.py`
+  `node ../basedpyright-frozendict/packages/pyright/index.js -p pyproject.toml frozendict_demonstrations.py dict_demonstrations.py`
