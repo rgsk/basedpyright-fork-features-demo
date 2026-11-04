@@ -27,7 +27,7 @@ uses it everywhere. The keys are exact: a frozendict has exactly the keys in its
 | Typo'd keys are errors | `user['nme']`: *Could not access item in frozendict* | Works today |
 | Key completion | typing `user[` offers `"name"`, `"age"` | Works today |
 | Key hover | hovering `'name'` in `user['name']` shows `(key) name: str`, as for a TypedDict key | Works today |
-| Shapes print as types | hover, errors, `reveal_type`: `frozendict[{'name': str, 'age': int}]`, also nested | Works today |
+| Shapes print as types | errors, `reveal_type`: `frozendict[{'name': str, 'age': int}]`, also nested; hover shows one key per line | Works today |
 | Inferred return types keep the shape | `def make(): return frozendict(...)` | Works today |
 | Merging keeps the shape | `a \| b`, `a \| {...}`, `a \|= b`, `frozendict(a, k=v)`, `frozendict({**a, ...})`, `frozendict(**a, ...)` | Merging keeps the shape |
 | `.get()` and `.copy()` | `.get('age')` is `int`; `.get('nme')` is `None` (no error); `.copy()` keeps the shape | .get() and .copy() |
@@ -58,7 +58,7 @@ A dict can change, so its shape can't be exact. The fork uses one rule:
 | Feature | Example | Section in `dict_demonstrations.py` |
 |---|---|---|
 | Per-key types, also nested | `user['age']` is `int`, `user['details']['sex']` is `str`; `dict(lr=1e-3)` too | A dict literal remembers its keys |
-| Shapes print as types | hover on `user`: `dict[{'name': str, 'age': int}]` | A dict literal remembers its keys |
+| Shapes print as types | hover on `user`: `dict[{'name': str, 'age': int}]`, one key per line | A dict literal remembers its keys |
 | Writes update the shape | `user['name'] = 2` changes the key's type, `user['joker'] = ...` adds a key, `del` removes one | Writes in the same function |
 | Methods with literal keys | `.update(k=v)`, `\|=`, `.pop('k')`, `.setdefault(...)`, `.clear()`; `.get()`, `.copy()`, `{**d}`, `d \| {...}` keep it | Writes in the same function |
 | Branches | after an `if`, a key keeps every type it can have; a key set in one branch only is forgotten | Branches |
@@ -89,6 +89,9 @@ value type, as today. The only new errors come from precise reads, like `user['a
   so its keys are only a promise) and not from a dict's remembered keys (unseen code may have changed them):
   `frozendict(some_dict)` has no shape. Neither does merging with an unshaped side, or building from
   `(key, value)` pairs.
+- **Hover breaks shapes one key per line** (indented, trailing commas, nested shapes indented further), like
+  TypeScript's hover; errors, `reveal_type` and completion keep the single-line form. A shape always prints with the
+  class's own name (`dict`, `frozendict`), even where a stub spells the type `typing.Dict`.
 - **A dict's shape is advisory.** It never restricts what can be assigned to the dict or passed from it, and
   `'k' in d` doesn't narrow it.
 - **Rejected:** `dict[{...}]`/`frozendict[{...}]` annotations (dropped 2026-11-05), `frozendict[SomeTypedDict]`,
@@ -109,14 +112,9 @@ value type, as today. The only new errors come from precise reads, like `user['a
 
 ## Setup
 
-- **The fork:** `../basedpyright-frozendict` (local only), branches stacked on basedpyright `main`:
-  - `frozendict-literal-keys`: the frozendict support (still includes the `frozendict[{...}]` annotations, which
-    were dropped later in the stack).
-  - `frozendict-pypi`: support for the PyPI package.
-  - `dict-literal-entries`: plain dicts remember their keys.
-  - `drop-frozendict-annotations`: removes the `frozendict[{...}]` annotations.
-  - `dict-entries-across-cells`: a dict's keys carry over to later notebook cells. **Build from the top of the
-    stack**, so every project gets everything.
+- **The fork:** `../basedpyright-frozendict` (local only). All work is on one branch, `dev`, on top of
+  basedpyright `main`; commit there and build from it. The history has one commit per step (frozendict
+  support, the PyPI package, dict keys, dropping the annotations, notebook cells, multi-line hover, ...).
 
   Rebuild with `npx pnpm@11.21.0 run build:cli:dev` in the fork, then reload VS Code. Run tests one worker at a
   time (`jest --runInBand`); a full parallel run can take the machine down.
