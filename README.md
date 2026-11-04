@@ -64,6 +64,7 @@ A dict can change, so its shape can't be exact. The fork uses one rule:
 | Branches | after an `if`, a key keeps every type it can have; a key set in one branch only is forgotten | Branches |
 | Keys the checker can't read | `scores[subject] = 100` forgets every key | Unknown keys |
 | Inferred return types keep the shape | `def make(): d = {...}; ...; return d` | Inferred return types |
+| Across notebook cells | a later cell sees the keys at the end of the cells before it, writes in between included (cells run in order) | (try it in a notebook) |
 | Plain where it can't follow | attributes (`self.cfg`), globals read in a function, dicts inside lists or tuples | Where the checker can't follow |
 | Key completion | typing `user[` offers the keys, also for `make()[` | (try it in the editor) |
 
@@ -113,8 +114,9 @@ value type, as today. The only new errors come from precise reads, like `user['a
     were dropped later in the stack).
   - `frozendict-pypi`: support for the PyPI package.
   - `dict-literal-entries`: plain dicts remember their keys.
-  - `drop-frozendict-annotations`: removes the `frozendict[{...}]` annotations. **Build from the top of the stack**,
-    so every project gets everything.
+  - `drop-frozendict-annotations`: removes the `frozendict[{...}]` annotations.
+  - `dict-entries-across-cells`: a dict's keys carry over to later notebook cells. **Build from the top of the
+    stack**, so every project gets everything.
 
   Rebuild with `npx pnpm@11.21.0 run build:cli:dev` in the fork, then reload VS Code. Run tests one worker at a
   time (`jest --runInBand`); a full parallel run can take the machine down.
