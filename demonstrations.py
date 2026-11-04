@@ -63,7 +63,7 @@ cfg2 |= {'epochs': 20}
 reveal_type(cfg2['epochs'])  # int
 reveal_type({'epochs': 20} | defaults)  # dict[str, int | float]: a dict on the left makes a dict
 
-# %% .get() and .copy(): every key in the shape is always present
+# %% ✅ .get() and .copy(): every key in the shape is always present
 reveal_type(user.get('age'))  # int (the default is never used)
 reveal_type(user.get('age', 0))  # int
 reveal_type(user.copy())  # frozendict[{'name': str, 'age': int}] (copy() returns self)
