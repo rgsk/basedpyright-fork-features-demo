@@ -5,7 +5,7 @@ type when run). Hover any expression to see its type. Kept as a .py file because
 no basedpyright diagnostics in notebooks.
 """
 
-from typing import reveal_type
+from typing import Literal, TypedDict, Unpack, reveal_type
 
 # %% ✅ Works today
 user = frozendict(name='rahul', age=27)
@@ -93,6 +93,75 @@ def make_user_plain() -> frozendict[str, str | int]:  # no shape declared: keys 
 
 reveal_type(make_user_plain()['age'])  # str | int
 
+# %% ✅ Like a TypedDict: ** unpacking, match patterns, narrowing, completion
+# Each feature is shown next to the TypedDict version it matches.
+
+
+class UserTD(TypedDict):
+    name: str
+    age: int
+
+
+td: UserTD = {'name': 'rahul', 'age': 27}
+
+
+# ** unpacking into parameters: each key goes to the parameter of the same name
+def greet(name: str, age: int) -> None:
+    print(name, age)
+
+
+def by_kwargs(**kwargs: Unpack[UserTD]) -> None:
+    print(kwargs)
+
+
+greet(**td)  # TypedDict
+greet(**user)  # frozendict: ok too (it was 2 errors, every key read as str | int)
+by_kwargs(**user)  # ok, against Unpack[UserTD]
+
+# Mapping patterns: the captured value has the key's type
+match user:
+    case {'age': user_age}:
+        reveal_type(user_age)  # int (TypedDict: int)
+
+
+# Unions of shapes narrow by a literal field or by key (tagged records)
+type Circle = frozendict[{'kind': Literal['circle'], 'radius': float}]  # noqa: F821
+type Square = frozendict[{'kind': Literal['square'], 'side': float}]  # noqa: F821
+
+
+def area(shape: Circle | Square) -> float:
+    if shape['kind'] == 'circle':
+        reveal_type(shape)  # frozendict[{'kind': Literal['circle'], 'radius': float}]
+        return 3.14 * shape['radius'] ** 2
+    return shape['side'] ** 2  # narrowed to Square
+
+
+def describe(shape: Circle | Square) -> float:
+    if 'radius' in shape:  # a shape's keys are exact, so this narrows too
+        return shape['radius']
+    return shape['side']
+
+
+# A literal value stays literal where the expected type needs it ('circle' isn't widened to str)
+circle: Circle = frozendict(kind='circle', radius=1.0)
+print(area(circle), describe(frozendict(kind='square', side=2.0)))
+
+# Key completion while building one whose type is declared (try it in the editor):
+#   typing  {  in  u: User = frozendict({   offers 'name', 'age'
+#   typing  (  in  u: User = frozendict(    offers name=, age=
+
+# %% ✅ fromkeys with literal keys: each key gets the value's type (None without one)
+reveal_type(
+    frozendict.fromkeys(['lr', 'momentum'], 0.0)
+)  # frozendict[{'lr': float, 'momentum': float}]
+# several keys sharing a default, merged into a known shape
+reveal_type(frozendict(**user, **frozendict.fromkeys(['lr', 'momentum'], 0.0)))
+#   frozendict[{'name': str, 'age': int, 'lr': float, 'momentum': float}]
+
 # %% No shape by design: built from a dict (its keys aren't known to the checker)
 d = {'a': 1}
 reveal_type(frozendict(d)['a'])  # int via _VT, but a typo key would not be flagged
+
+# From (key, value) pairs: no shape. Real code has the pairs in a variable (zip(keys, values)).
+reveal_type(frozendict([('name', 'rahul'), ('age', 27)]))
+#   frozendict[Literal['name', 'age'], Literal['rahul', 27]]

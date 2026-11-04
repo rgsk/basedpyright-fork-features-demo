@@ -25,6 +25,12 @@ comment, and the file runs as-is. It has 4 intended errors, each marked in a com
 | ✅ | Exact keys | assigning to `User` with a missing, extra or wrong-typed key is an error | Works today |
 | ✅ | Merging keeps the shape | `a \| b`, `a \| {...}`, `a \|= b`, `frozendict(a, k=v)`, `frozendict({**a, ...})`, `frozendict(**a, ...)` | Merging keeps the shape |
 | ✅ | `.get()` and `.copy()` | `.get('age')` is `int`; `.get('nme')` is `None` (no error); `.copy()` keeps the shape | .get() and .copy() |
+| ✅ | `fromkeys` | `frozendict.fromkeys(['lr', 'momentum'], 0.0)` is `{'lr': float, 'momentum': float}`; merges into other shapes | fromkeys |
+| ✅ | `**` unpacking | `greet(**user)` checks each key against its own parameter, also against `**kwargs: Unpack[TD]` | Like a TypedDict |
+| ✅ | `match` patterns | `case {'age': v}` gives `v: int` | Like a TypedDict |
+| ✅ | Union narrowing | `if s['kind'] == 'circle':` and `if 'radius' in s:` narrow `Circle \| Square` to `Circle` | Like a TypedDict |
+| ✅ | Tagged records | `frozendict(kind='circle', ...)` keeps `Literal['circle']` where a `Circle` is expected | Like a TypedDict |
+| ✅ | Completion while building | typing `{` or `(` in `u: User = frozendict(` offers the shape's keys | Like a TypedDict |
 
 ### Python < 3.15: the `frozendict` package
 
@@ -48,7 +54,11 @@ package's own `.set()` and `.delete()` keep its stub's plain types; use `user | 
 - **The checker reports an error only where the code would fail at runtime.** `user['nme']` raises `KeyError`,
   so it's an error. `user.get('nme')` returns `None` at runtime, so it isn't an error; its type is exactly
   `None`, and misuse such as `.upper()` is reported where it would actually fail.
-- **No shape when the keys can't be known**: `frozendict(some_dict)`, or merging with an unshaped side.
+- **No shape when the keys can't be known**: `frozendict(some_dict)`, merging with an unshaped side, or
+  `frozendict(pairs)` from `(key, value)` pairs (real code has them in a variable, e.g. `zip(keys, values)`).
+- **Shapes come only from frozendicts, never from a TypedDict**, even a closed one (PEP 728): a TypedDict is a
+  plain `dict` at runtime, so its keys are only the checker's promise (ignored errors, `cast`, `json.loads` with
+  extra fields), and an exact shape built from it could be wrong about the actual value.
 - **Rejected:** `frozendict[SomeTypedDict]`, a `FrozenDict` base-class package (a frozen dataclass covers
   that), and a copyable `class _(TypedDict)` block in hover (replaced by printing the shape inline).
 
@@ -68,8 +78,9 @@ package's own `.set()` and `.delete()` keep its stub's plain types; use `user | 
 ## Setup
 
 - **The fork:** `../basedpyright-frozendict` (local only), two branches on basedpyright `main`:
-  - `frozendict-literal-keys`, the upstream candidate: a typeshed stub fix, per-key inference, shape notation and
-    annotations, merging, `.get()`/`.copy()`, and key hover.
+  - `frozendict-literal-keys`, the upstream candidate (10 commits): a typeshed stub fix, per-key inference, shape
+    notation and annotations, merging, `.get()`/`.copy()`, key hover, `**` unpacking and `match` patterns,
+    narrowing and tagged records, completion while building, and `fromkeys`.
   - `frozendict-pypi`, one commit on top: support for the PyPI package. **Keep this one checked out and build
     from it**, so every project gets both.
 
