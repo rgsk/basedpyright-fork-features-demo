@@ -1,5 +1,7 @@
 # latest-python-features
 
+*Last updated: 2026-11-06 (fork `dev` at 66a43f3a8).*
+
 A Python 3.15 playground. Its main use so far is a local basedpyright fork that gives each key of a dict or a
 `frozendict` (PEP 814) its own type, inferred from how the dict is built.
 
