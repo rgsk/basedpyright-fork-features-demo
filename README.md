@@ -27,6 +27,8 @@ uses it everywhere. The keys are exact: a frozendict has exactly the keys in its
 | Typo'd keys are errors | `user['nme']`: *Could not access item in frozendict* | Works today |
 | Key completion | typing `user[` offers `"name"`, `"age"` | Works today |
 | Key hover | hovering `'name'` in `user['name']` shows `(key) name: str`, as for a TypedDict key | Works today |
+| Go to definition on keys | ctrl+click `'name'` in `user['name']` jumps to where the key was added (`name=`, `{'name': ...}`, `fromkeys`, either side of a `\|`) | (try it in the editor) |
+| Keys coloured as properties | known keys get their own colour (see Setup); a typo'd key stays string-coloured | (try it in the editor) |
 | Shapes print as types | errors, `reveal_type`: `frozendict[{'name': str, 'age': int}]`, also nested; hover shows one key per line | Works today |
 | Inferred return types keep the shape | `def make(): return frozendict(...)` | Works today |
 | Merging keeps the shape | `a \| b`, `a \| {...}`, `a \|= b`, `frozendict(a, k=v)`, `frozendict({**a, ...})`, `frozendict(**a, ...)` | Merging keeps the shape |
@@ -66,7 +68,10 @@ A dict can change, so its shape can't be exact. The fork uses one rule:
 | Inferred return types keep the shape | `def make(): d = {...}; ...; return d` | Inferred return types |
 | Across notebook cells | a later cell sees the keys at the end of the cells before it, writes in between included (cells run in order) | (try it in a notebook) |
 | Plain where it can't follow | attributes (`self.cfg`), globals read in a function, dicts inside lists or tuples | Where the checker can't follow |
+| Filled key by key | `d = {}; d['env'] = 22` is `dict[{'env': int}]` (a declared `d: dict[str, int] = {}` keeps its type) | (try it in the editor) |
 | Key completion | typing `user[` offers the keys, also for `make()[` | (try it in the editor) |
+| Go to definition on keys | ctrl+click `'sex'` in `prb['sex']` jumps to where the key was first added (literal, keyword, adding write, `setdefault`, `\|`), also across notebook cells | (try it in the editor) |
+| Keys coloured as properties | known keys (also TypedDict keys) are coloured like attributes; a typo'd key stays string-coloured | (try it in the editor) |
 
 It never adds errors by itself: an unknown key reads as today's type, and writes are checked against the dict's
 value type, as today. The only new errors come from precise reads, like `user['age'].upper()` on an `int`.
@@ -97,7 +102,7 @@ value type, as today. The only new errors come from precise reads, like `user['a
 - **Rejected:** `dict[{...}]`/`frozendict[{...}]` annotations (dropped 2026-11-05), `frozendict[SomeTypedDict]`,
   a `FrozenDict` base-class package (a frozen dataclass covers that), and a `class _(TypedDict)` block in hover.
 - **Later, maybe:** a `sealeddict` package, a dict subclass whose keys can't be added or removed (checked at
-  runtime too), for TS-style errors on writes.
+  runtime too), for TS-style errors on writes. Parked ideas and plans are in [roadmap.md](roadmap.md).
 
 ## Known gaps
 
@@ -114,17 +119,32 @@ value type, as today. The only new errors come from precise reads, like `user['a
 
 - **The fork:** `../basedpyright-frozendict` (local only). All work is on one branch, `dev`, on top of
   basedpyright `main`; commit there and build from it. The history has one commit per step (frozendict
-  support, the PyPI package, dict keys, dropping the annotations, notebook cells, multi-line hover, ...).
+  support, the PyPI package, dict keys, dropping the annotations, notebook cells, multi-line hover, `{}` shapes,
+  key colouring, go-to-definition on keys, the VS Code switch, ...).
 
-  Rebuild with `npx pnpm@11.21.0 run build:cli:dev` in the fork, then reload VS Code. Run tests one worker at a
-  time (`jest --runInBand`); a full parallel run can take the machine down.
-- **VS Code runs the fork** through the wrapper `.venv/bin/basedpyright-langserver` (with
-  `basedpyright.importStrategy: fromEnvironment`). Delete the wrapper to go back to the bundled basedpyright.
-  The usual window is the `../frozendict-dev.code-workspace` workspace. dream-robot has the same wrapper, with
-  its stock script saved next to it as `basedpyright-langserver.stock`. A `uv sync` that reinstalls basedpyright
-  overwrites a wrapper.
-- **Comparing against stock basedpyright:** open `../playground-stock` in a second window. It has basedpyright
-  1.40.2 from PyPI and symlinks to both demo files. (There's one basedpyright server per window, so the two can't
-  share a workspace.)
+  Rebuild with `npx pnpm@11.21.0 run build:cli:dev` in the fork, then restart the server
+  (*BasedPyright: Restart Server*) or reload VS Code. Run tests one worker at a time (`jest --runInBand`); a full
+  parallel run can take the machine down.
+- **VS Code runs the fork in every project** through one user setting:
+
+  ```jsonc
+  "basedpyright.fork.enabled": true,   // false: stock basedpyright
+  "basedpyright.fork.serverPath": "~/Documents/codes/projects/basedpyright-frozendict/packages/pyright/langserver.index.js",
+  ```
+
+  The switch comes from a hand-built VSIX installed in place of the marketplace extension
+  (`../basedpyright-frozendict/packages/vscode-pyright/basedpyright-fork.vsix`): stock 1.40.2, including its
+  stock server, with the fork's `extension.js`. Changing the setting asks to reload the window. It takes
+  precedence over `importStrategy`, so the older per-project wrappers (`.venv/bin/basedpyright-langserver` here
+  and in dream-robot) are no longer used. Turn off auto-update for the extension: a marketplace update replaces
+  the VSIX and the switch with it.
+  The usual window is the `../frozendict-dev.code-workspace` workspace (this project plus the fork).
+- **Key colour:** the fork marks dict keys as semantic tokens `property` with a `key` modifier (plus `readonly`
+  for frozendict and ReadOnly TypedDict keys). The colour is in user settings,
+  `editor.semanticTokenColorCustomizations`: `property.key:python` and `property.key.readonly:python`, both
+  `#C9848E`. After a reload, a notebook may need one edit before its keys are coloured.
+- **Comparing against stock basedpyright:** set `basedpyright.fork.enabled` to `false`, or open
+  `../playground-stock` in a second window: basedpyright 1.40.2 from PyPI, symlinks to both demo files, and
+  `basedpyright.fork.enabled: false` in its `.vscode/settings.json`.
 - **Checking from the shell:**
   `node ../basedpyright-frozendict/packages/pyright/index.js -p pyproject.toml frozendict_demonstrations.py dict_demonstrations.py`
