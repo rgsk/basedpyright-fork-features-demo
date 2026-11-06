@@ -3,8 +3,7 @@
     // no second language server from the Python extension (it would start Jedi, Pylance not being installed).
     // Checker and Ruff config live in pyproject.toml ([tool.basedpyright], [tool.ruff]), not here
     "python.languageServer": "None",
-    // .venv/bin/basedpyright-langserver: a wrapper running the local basedpyright fork
-    // (../basedpyright-frozendict), not the one bundled with the extension
+    // the local fork runs through the user setting basedpyright.fork.enabled, which overrides this
     "basedpyright.importStrategy": "fromEnvironment",
     "basedpyright.analysis.diagnosticMode": "openFilesOnly",
     // --- Ruff: format and fix on save via ruffgrid (Ruff + grid packing; the project's .venv/bin/ruff,

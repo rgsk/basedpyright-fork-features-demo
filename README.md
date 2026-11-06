@@ -137,8 +137,8 @@ value type, as today. The only new errors come from precise reads, like `user['a
   The switch comes from a hand-built VSIX installed in place of the marketplace extension
   (`../basedpyright-frozendict/packages/vscode-pyright/basedpyright-fork.vsix`): stock 1.40.2, including its
   stock server, with the fork's `extension.js`. Changing the setting asks to reload the window. It takes
-  precedence over `importStrategy`, so the older per-project wrappers (`.venv/bin/basedpyright-langserver` here
-  and in dream-robot) are no longer used. Turn off auto-update for the extension: a marketplace update replaces
+  precedence over `importStrategy`; the per-project `.venv/bin/basedpyright-langserver` wrappers it replaced
+  (here, rl, dream-robot) were removed. Turn off auto-update for the extension: a marketplace update replaces
   the VSIX and the switch with it.
   The usual window is the `../frozendict-dev.code-workspace` workspace (this project plus the fork).
 - **Key colour:** the fork marks dict keys as semantic tokens `property` with a `key` modifier (plus `readonly`

@@ -8,8 +8,8 @@ dependencies = []
 [dependency-groups]
 dev = [
     "ipykernel>=7.4.0",
-    # format and fixes on save in VS Code (rgsk.ruffgrid). No basedpyright here: its
-    # basedpyright-langserver would replace the .venv/bin wrapper that runs the local fork
+    # format and fixes on save in VS Code (rgsk.ruffgrid). No basedpyright needed: VS Code runs
+    # the local fork through the user setting basedpyright.fork.enabled
     "ruff>=0.16.2",
     "ruffgrid",
 ]
