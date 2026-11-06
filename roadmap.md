@@ -4,6 +4,11 @@ Ideas parked for later. Fork work goes in `~/Documents/codes/projects/basedpyrig
 
 ## Go-to-definition on dict and frozendict keys
 
+**Done (2026-11-06, fork `dev` 1dd276fb5), first version:** jumps to where the key was first added
+(literal key, keyword, adding write, `setdefault`, `fromkeys`, `|` merges), across notebook cells too;
+a multi-word key is underlined whole on ctrl+hover. Not done yet: the list of every later write (step 2's
+"all origins"), `.get('k')` keys, and find-references. The plan below is kept for those.
+
 Ctrl+click on `'sex'` in `prb['sex']` jumps to where the key was added, as stock pyright already does for
 TypedDict keys (it jumps to the `name: str` line in the class). It covers both `dict` and `frozendict`
 (builtin and the PyPI package): their shapes live in the same `knownEntries`, so one change serves both.
