@@ -45,3 +45,11 @@ runtime. TypedDict keys are safe to rename only because the class declares them.
 
 **Size:** medium. The new field, every place that creates or merges entries (literals, `dict()`, `.update`,
 `|`, index writes, the cell carry-over), the lookup, and tests.
+
+## Upstream quirk: plain words in a call's string argument act like the call
+
+Seen 2026-11-06 in a notebook: in `print(f'image tokens changed by: {before:.3f} ...')`, a plain word of
+the string (`changed`) is underlined on ctrl+hover, its hover shows `print`'s signature, and go-to-definition
+jumps to `print`'s stub. Stock basedpyright does the same, so it isn't from the fork. **Not fixing for now.**
+If it's ever looked at: compare stock and the fork side by side, since the fork's go-to-definition on keys
+also handles strings (`getDeclInfoForStringNode`) and must not make this worse.
