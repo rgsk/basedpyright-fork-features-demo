@@ -1,9 +1,9 @@
 # latest-python-features
 
-*Last updated: 2026-11-06 (fork `dev` at 66a43f3a8).*
+*Last updated: 2026-11-07 (fork `dev` at 64d68df31).*
 
 A Python 3.15 playground. Its main use so far is a local basedpyright fork that gives each key of a dict or a
-`frozendict` (PEP 814) its own type, inferred from how the dict is built.
+`frozendict` (PEP 814), and of PyTorch's `nn.ModuleDict`, its own type, inferred from how the dict is built.
 
 **The rule for the fork: code must never need it.** It only infers; it adds no new syntax. Other checkers see plain
 `dict[str, ...]` and `frozendict[str, ...]` types and lose only precision. To declare a shape, use a class
@@ -81,6 +81,39 @@ value type, as today. The only new errors come from precise reads, like `user['a
 **Known hole**, the same one pyright accepts for `d['k'] = v` narrowing: a call that changes the dict, like
 `rename(user)` or `user.update(other)` through an alias, isn't seen, so the shape can be stale.
 
+## PyTorch's nn.ModuleDict
+
+Stock basedpyright types every read of a `ModuleDict` as `Module`, because that's what its `__getitem__` declares.
+The fork gives a `ModuleDict` built from a dict with literal keys the same per-key shape:
+
+```python
+core = nn.ModuleDict(dict(tau=nn.Linear(1, D), body=nn.TransformerEncoder(layer, num_layers=4))).to(dev)
+core['body']   # TransformerEncoder
+core['bdy']    # error: Could not access item in ModuleDict
+```
+
+| Feature | Example |
+|---|---|
+| Built from a dict | `nn.ModuleDict(dict(k=v, ...))`, `nn.ModuleDict({'k': v, ...})`, or a dict variable that has a shape |
+| Shapes print as types | `ModuleDict[{'tau': Linear, 'body': TransformerEncoder}]` |
+| Methods that return self keep it | `.to(...)`, `.cuda()`, `.cpu()`, `.train()`, `.eval()`, `.requires_grad_()` and chains of them (torch declares them `-> Self`), also `copy.deepcopy(core)` |
+| Typo'd keys are errors | `core['bdy']`; a key that isn't a literal reads as `Module`, as today |
+| Writes make it plain | `core['x'] = ...`, `del core['x']`, `.update()`, `.pop()`, `.clear()`, `.add_module()`, `.register_module()`: from there on it's a plain `ModuleDict` and reads are `Module` |
+| Like a dict elsewhere | key completion, key hover, inferred return types and notebook cells work; attributes (`self.core`) and globals read in a function are plain |
+
+Two rules differ from a dict's, so that a missing key can be an error:
+
+- **Any write the checker sees makes it plain**, instead of updating the shape. With an updated shape, a key added in
+  only one branch of an `if` would be forgotten, and reading it afterwards would be a false error. Two branches that
+  build ModuleDicts with different keys make it plain too.
+- **Known hole:** a key added where the checker can't see it (through an alias, `add_head(core)`, or `core.x = ...`)
+  is reported as missing although it works at runtime. With a dict, the same hole only leaves the shape stale.
+
+Only `torch.nn.ModuleDict` itself gets a shape, not its subclasses. `nn.ParameterDict` is left alone: its stub takes
+and returns `Any`, and at runtime it wraps plain tensors in `Parameter`, so the argument types would be wrong.
+`~/Documents/codes/ml/dream-robot/rough/dino_parts.py` uses it (`student`, and `teacher` made from it with
+`copy.deepcopy(...).requires_grad_(False)`).
+
 ## Design decisions
 
 - **No shape annotations.** `frozendict[{'name': str}]` and `dict[{'name': str}]` are display only; in an
@@ -122,7 +155,7 @@ value type, as today. The only new errors come from precise reads, like `user['a
 - **The fork:** `../basedpyright-frozendict` (local only). All work is on one branch, `dev`, on top of
   basedpyright `main`; commit there and build from it. The history has one commit per step (frozendict
   support, the PyPI package, dict keys, dropping the annotations, notebook cells, multi-line hover, `{}` shapes,
-  key colouring, go-to-definition on keys, the VS Code switch, ...).
+  key colouring, go-to-definition on keys, the VS Code switch, `nn.ModuleDict`, ...).
 
   Rebuild with `npx pnpm@11.21.0 run build:cli:dev` in the fork, then restart the server
   (*BasedPyright: Restart Server*) or reload VS Code. Run tests one worker at a time (`jest --runInBand`); a full
