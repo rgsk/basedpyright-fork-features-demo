@@ -1,6 +1,6 @@
 # latest-python-features
 
-*Last updated: 2026-11-07 (fork `dev` at 64d68df31).*
+*Last updated: 2026-11-08 (fork `dev` at 53dd37fdb).*
 
 A Python 3.15 playground. Its main use so far is a local basedpyright fork that gives each key of a dict or a
 `frozendict` (PEP 814), and of PyTorch's `nn.ModuleDict`, its own type, inferred from how the dict is built.
@@ -56,20 +56,23 @@ package's own `.set()` and `.delete()` keep its stub's plain types; use `user | 
 
 A dict can change, so its shape can't be exact. The fork uses one rule:
 
-> A dict literal remembers its keys. Writes in the same function update that memory. Wherever the checker can't
-> follow the dict, it is a plain `dict[str, ...]`, as today.
+> A dict literal remembers its keys. Writes in the same function update that memory. A function reading a global
+> dict sees the keys of the code (and notebook cells) above it. Wherever the checker can't follow the dict, it is a
+> plain `dict[str, ...]`, as today.
 
 | Feature | Example | Section in `dict_demonstrations.py` |
 |---|---|---|
 | Per-key types, also nested | `user['age']` is `int`, `user['details']['sex']` is `str`; `dict(lr=1e-3)` too | A dict literal remembers its keys |
 | Shapes print as types | hover on `user`: `dict[{'name': str, 'age': int}]`, one key per line | A dict literal remembers its keys |
 | Writes update the shape | `user['name'] = 2` changes the key's type, `user['joker'] = ...` adds a key, `del` removes one | Writes in the same function |
-| Methods with literal keys | `.update(k=v)`, `\|=`, `.pop('k')`, `.setdefault(...)`, `.clear()`; `.get()`, `.copy()`, `{**d}`, `d \| {...}` keep it | Writes in the same function |
+| Methods with literal keys | `.update(k=v)`, `.update({...})`, `\|=`, `.pop('k')`, `.setdefault(...)`, `.clear()`; `.get()`, `.copy()`, `{**d}`, `d \| {...}` keep it | Writes in the same function |
+| `.update()` works like `\|=` | `user = {'name': 'rahul'}; user.update({'b': 20})` is `dict[{'name': str, 'b': int}]`, no error (stock pyright rejects the `int`); a declared `user: dict[str, str]` keeps the error | (try it in the editor) |
 | Branches | after an `if`, a key keeps every type it can have; a key set in one branch only is forgotten | Branches |
 | Keys the checker can't read | `scores[subject] = 100` forgets every key | Unknown keys |
 | Inferred return types keep the shape | `def make(): d = {...}; ...; return d` | Inferred return types |
 | Across notebook cells | a later cell sees the keys at the end of the cells before it, writes in between included (cells run in order) | (try it in a notebook) |
-| Plain where it can't follow | attributes (`self.cfg`), globals read in a function, dicts inside lists or tuples | Where the checker can't follow |
+| Globals read in a function | have the keys of the code and cells above the function (read top to bottom, as a notebook is: an assignment below doesn't count) | A global read in a function |
+| Plain where it can't follow | attributes (`self.cfg`), dicts inside lists or tuples | Where the checker can't follow |
 | Filled key by key | `d = {}; d['env'] = 22` is `dict[{'env': int}]` (a declared `d: dict[str, int] = {}` keeps its type) | (try it in the editor) |
 | Key completion | typing `user[` offers the keys, also for `make()[` | (try it in the editor) |
 | Go to definition on keys | ctrl+click `'sex'` in `prb['sex']` jumps to where the key was first added (literal, keyword, adding write, `setdefault`, `\|`), also across notebook cells | (try it in the editor) |
@@ -98,14 +101,17 @@ core['bdy']    # error: Could not access item in ModuleDict
 | Shapes print as types | `ModuleDict[{'tau': Linear, 'body': TransformerEncoder}]` |
 | Methods that return self keep it | `.to(...)`, `.cuda()`, `.cpu()`, `.train()`, `.eval()`, `.requires_grad_()` and chains of them (torch declares them `-> Self`), also `copy.deepcopy(core)` |
 | Typo'd keys are errors | `core['bdy']`; a key that isn't a literal reads as `Module`, as today |
-| Writes make it plain | `core['x'] = ...`, `del core['x']`, `.update()`, `.pop()`, `.clear()`, `.add_module()`, `.register_module()`: from there on it's a plain `ModuleDict` and reads are `Module` |
-| Like a dict elsewhere | key completion, key hover, inferred return types and notebook cells work; attributes (`self.core`) and globals read in a function are plain |
+| `.update()` adds keys | `enc.update(dict(film=nn.Linear(8, 256)))` makes `enc['film']` a `Linear` (its only way to add keys: no `\|=`) |
+| Other writes make it plain | `core['x'] = ...`, `del core['x']`, `.update()` with unknown keys, `.pop()`, `.clear()`, `.add_module()`, `.register_module()`: from there on it's a plain `ModuleDict` and reads are `Module` |
+| Like a dict elsewhere | key completion, key hover, inferred return types, notebook cells and globals read in a function work; attributes (`self.core`) are plain |
 
 Two rules differ from a dict's, so that a missing key can be an error:
 
-- **Any write the checker sees makes it plain**, instead of updating the shape. With an updated shape, a key added in
+- **Any write the checker sees makes it plain** (except `.update()` with known keys), instead of updating the shape. With an updated shape, a key added in
   only one branch of an `if` would be forgotten, and reading it afterwards would be a false error. Two branches that
   build ModuleDicts with different keys make it plain too.
+- **Inside a function, a missing key isn't an error.** Code that runs before the call may have added it, so
+  `enc['not_yet']` in a function reads as `Module`, as today.
 - **Known hole:** a key added where the checker can't see it (through an alias, `add_head(core)`, or `core.x = ...`)
   is reported as missing although it works at runtime. With a dict, the same hole only leaves the shape stale.
 

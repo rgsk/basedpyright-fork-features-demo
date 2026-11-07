@@ -92,6 +92,25 @@ def make():
 reveal_type(make())  # dict[{'name': str, 'age': int, 'admin': bool}]
 reveal_type(make()['age'])  # int
 
+# %% 🆕 A global read in a function has the keys of the code (and notebook cells) above it
+
+counters = {'hits': 0}
+
+
+def bump() -> None:
+    reveal_type(counters)  # dict[{'hits': int}]
+    reveal_type(counters.get('misses'))  # int | None: no error, code before the call may add keys
+
+
+later = {'a': 1}
+
+
+def read_later() -> None:
+    reveal_type(later)  # dict[{'a': int}] (read top to bottom, as a notebook is: the assignment below doesn't count)
+
+
+later = {'b': 2}
+
 # %% Where the checker can't follow the dict: plain dict[str, ...], as today
 
 
@@ -106,11 +125,6 @@ class Settings:
         reveal_type(self.cfg)  # dict[str, Unknown] (plain: attributes don't remember keys)
 
 
-counters = {'hits': 0}
-
-
-def bump() -> None:
-    reveal_type(counters)  # dict[str, int] (plain: a global read inside a function)
 
 
 # %% ⚠️ Known hole: a call that changes the dict isn't seen (pyright's narrowing has the same one)
