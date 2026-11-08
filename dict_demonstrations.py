@@ -60,6 +60,15 @@ reveal_type(user.copy())  # dict[{'name': int, 'age': int, 'joker': str, 'city':
 reveal_type({**user, 'age': '27'})  # dict[{'name': int, 'age': str, 'joker': str, 'city': str}]
 reveal_type(user | {'age': 28.5})  # dict[{'name': int, 'age': float, 'joker': str, 'city': str}]
 
+# %% 🆕 A dict comprehension over known keys knows its keys (every key has the value's type)
+splits = {'train': [1, 2], 'val': [3]}
+sizes = {s: len(splits[s]) for s in splits}  # also splits.keys(), k, v in splits.items(), ['a', 'b']
+reveal_type(sizes)  # dict[{'train': int, 'val': int}]
+runs = {name: {s: w * len(splits[s]) for s in splits} for name, w in [('trained', 1), ('untrained', 0)]}
+reveal_type(runs['trained'])  # dict[{'train': int, 'val': int}]
+# With an `if` clause, or a key other than the loop variable, it's a plain dict as today
+reveal_type({s: 0 for s in splits if s != 'val'})  # dict[str, int]
+
 # %% 🆕 Branches: a key keeps every type it can have; a key set in one branch only is forgotten
 point = {'x': 0, 'y': 0, 'label': 'origin'}
 if len(user) > 3:
