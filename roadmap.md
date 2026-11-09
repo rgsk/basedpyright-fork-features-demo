@@ -53,3 +53,27 @@ the string (`changed`) is underlined on ctrl+hover, its hover shows `print`'s si
 jumps to `print`'s stub. Stock basedpyright does the same, so it isn't from the fork. **Not fixing for now.**
 If it's ever looked at: compare stock and the fork side by side, since the fork's go-to-definition on keys
 also handles strings (`getDeclInfoForStringNode`) and must not make this worse.
+
+## ModuleDict shapes on attributes (`self.instr`)
+
+Seen 2026-11-09 in a notebook: `self.instr = nn.ModuleDict(dict(colour=nn.Embedding(...), side=nn.Embedding(...)))`
+in `__init__` hovers as `ModuleDict[{'colour': Embedding, 'side': Embedding}]`, but `self.instr` in `forward`
+is a plain `ModuleDict`: `self.instr['colour']` reads as `Module` and a typo'd key isn't caught. That's the
+main way a ModuleDict is used (built in `__init__`, read in `forward`), so it's worth doing next.
+
+**Why:** a member variable's declared type is inferred from its assignments, and that drops the shape on purpose
+(`removeDictKnownEntries` in the declared-type loop of `typeEvaluator.ts`): another method may change the dict.
+
+**Plan:** treat it like a global read in a function (fork 53dd37fdb, `getDictTypeInFunction`):
+- An attribute whose every assignment is in `__init__` keeps the shape it has at the end of `__init__` when
+  read in other methods.
+- Mark the entries as an outer scope's (`ClassType.cloneForOuterScopeEntries`): reads get per-key types, but a
+  missing key isn't an error (another method may add it) and reads as `Module`, as today.
+- **ModuleDict only, at first.** For a plain dict, `self.cache = {}` filled in by other methods is common, and
+  `dict[{}]` would mislead. ModuleDicts are almost always built once in `__init__` and only read.
+- An assignment outside `__init__`, or a write the checker sees there, keeps it plain.
+
+**Tests:** `based_moduledict/sample.py` (hover in `forward`, per-key reads, no error on a missing key, an
+assignment in another method makes it plain); README's ModuleDict table ("attributes are plain" row).
+
+**Size:** small to medium.
