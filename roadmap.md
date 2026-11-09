@@ -58,8 +58,37 @@ also handles strings (`getDeclInfoForStringNode`) and must not make this worse.
 
 Seen 2026-11-09 in a notebook: `self.instr = nn.ModuleDict(dict(colour=nn.Embedding(...), side=nn.Embedding(...)))`
 in `__init__` hovers as `ModuleDict[{'colour': Embedding, 'side': Embedding}]`, but `self.instr` in `forward`
-is a plain `ModuleDict`: `self.instr['colour']` reads as `Module` and a typo'd key isn't caught. That's the
+is a plain `ModuleDict`: `self.instr['colour']` reads as `Module`, so `.weight` and the call's types are lost
+(a typo'd key stays uncaught even after this, as with globals read in a function). That's the
 main way a ModuleDict is used (built in `__init__`, read in `forward`), so it's worth doing next.
+
+```python
+import torch
+from torch import nn
+
+class UNet(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.instr = nn.ModuleDict(dict(colour=nn.Embedding(4, 256), side=nn.Embedding(2, 256)))
+        self.instr  # ModuleDict[{'colour': Embedding, 'side': Embedding}]
+
+    def forward(self, colour: torch.Tensor, side: torch.Tensor):
+        self.instr            # today: ModuleDict         wanted: ModuleDict[{'colour': Embedding, 'side': Embedding}]
+        self.instr['colour']  # today: Module             wanted: Embedding
+        self.instr['color']   # today: Module, no error   wanted: Module, no error (another method may add it)
+        return self.instr['colour'](colour) + self.instr['side'](side)
+
+class Patched(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.heads = nn.ModuleDict(dict(a=nn.Linear(8, 8)))
+
+    def add_head(self):
+        self.heads = nn.ModuleDict()  # assigned outside __init__
+
+    def forward(self, x: torch.Tensor):
+        return self.heads['a'](x)     # stays plain: Module
+```
 
 **Why:** a member variable's declared type is inferred from its assignments, and that drops the shape on purpose
 (`removeDictKnownEntries` in the declared-type loop of `typeEvaluator.ts`): another method may change the dict.
