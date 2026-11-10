@@ -120,6 +120,26 @@ def read_later() -> None:
 
 later = {'b': 2}
 
+# %% 🆕 Dicts in a list (or tuple, or dict value) keep their keys
+
+
+def summarize(losses: list[float]):
+    best = min(losses)
+    return {'best': best, 'best_epoch': losses.index(best), 'improved': losses[-1] < losses[0]}
+
+
+rows = [summarize(losses) for losses in [[0.9, 0.4], [0.8, 0.5]]]
+reveal_type(rows)  # list[dict[{'best': float, 'best_epoch': int, 'improved': bool}]]
+reveal_type(rows[0]['best_epoch'])  # int
+by_run = {name: summarize(losses) for name, losses in [('a', [0.9]), ('b', [0.8])]}
+reveal_type(by_run['a']['improved'])  # bool
+
+# A write through the list makes its dicts plain: the checker can't tell which one changed
+results = [{'loss': 0.4, 'tag': 'a'}, {'loss': 0.5, 'tag': 'b'}]
+for i in range(len(results)):
+    results[i]['loss'] = 'n/a'
+reveal_type(results)  # list[dict[str, Unknown]] (plain, as today); also del, .update(), .append(), results[i] = ...
+
 # %% Where the checker can't follow the dict: plain dict[str, ...], as today
 
 
@@ -146,6 +166,12 @@ def rename(d: dict[str, str | int]) -> None:
 stale = {'name': 'rahul', 'age': 27}
 rename(stale)
 reveal_type(stale['name'])  # str, but it's 5 at runtime
+
+# The same with a write through a loop variable: the checker doesn't connect r to the list
+logs = [{'loss': 0.4, 'tag': 'a'}]
+for r in logs:
+    r['loss'] = 'n/a'
+reveal_type(logs[0]['loss'])  # float, but it's 'n/a' at runtime
 
 # %% ❌ Not done (by design)
 

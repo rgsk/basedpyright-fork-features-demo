@@ -1,6 +1,6 @@
 # latest-python-features
 
-*Last updated: 2026-11-08 (fork `dev` at 174a90fbd).*
+*Last updated: 2026-11-11 (fork `dev` at 10b2775b4).*
 
 A Python 3.15 playground. Its main use so far is a local basedpyright fork that gives each key of a dict or a
 `frozendict` (PEP 814), and of PyTorch's `nn.ModuleDict`, its own type, inferred from how the dict is built.
@@ -73,7 +73,9 @@ A dict can change, so its shape can't be exact. The fork uses one rule:
 | Inferred return types keep the shape | `def make(): d = {...}; ...; return d` | Inferred return types |
 | Across notebook cells | a later cell sees the keys at the end of the cells before it, writes in between included (cells run in order) | (try it in a notebook) |
 | Globals read in a function | have the keys of the code and cells above the function (read top to bottom, as a notebook is: an assignment below doesn't count) | A global read in a function |
-| Plain where it can't follow | attributes (`self.cfg`), dicts inside lists or tuples | Where the checker can't follow |
+| Dicts in lists, tuples and dict values | `rows = [summarize(l) for l in runs]` is `list[dict[{'best': float, ...}]]`, `rows[0]['best']` is `float`; `{name: summarize(l) for ...}` and `(d, 1)[0]` too. Still accepted wherever the plain type is (a `list[dict[str, float]]` parameter) | Dicts in a list |
+| Writes through the list make them plain | `rows[i]['k'] = v`, `del rows[i]['k']`, `rows[i].update(...)`, `rows.append(...)`, `rows[i] = ...`: the checker can't tell which dict changed. Through literal keys (`by['x']['a'] = v`) only that dict's keys change | Dicts in a list |
+| Plain where it can't follow | attributes (`self.cfg`) | Where the checker can't follow |
 | Filled key by key | `d = {}; d['env'] = 22` is `dict[{'env': int}]` (a declared `d: dict[str, int] = {}` keeps its type) | (try it in the editor) |
 | Key completion | typing `user[` offers the keys, also for `make()[` | (try it in the editor) |
 | Go to definition on keys | ctrl+click `'sex'` in `prb['sex']` jumps to where the key was first added (literal, keyword, adding write, `setdefault`, `\|`), also across notebook cells | (try it in the editor) |
@@ -83,7 +85,8 @@ It never adds errors by itself: an unknown key reads as today's type, and writes
 value type, as today. The only new errors come from precise reads, like `user['age'].upper()` on an `int`.
 
 **Known hole**, the same one pyright accepts for `d['k'] = v` narrowing: a call that changes the dict, like
-`rename(user)` or `user.update(other)` through an alias, isn't seen, so the shape can be stale.
+`rename(user)` or `user.update(other)` through an alias, isn't seen, so the shape can be stale. So is a write
+through a loop variable: after `for r in rows: r['loss'] = 'n/a'`, `rows[0]['loss']` still reads as `float`.
 
 ## PyTorch's nn.ModuleDict
 
