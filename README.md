@@ -1,6 +1,6 @@
 # latest-python-features
 
-*Last updated: 2026-11-12 (fork `dev` at 4b2381bbf).*
+*Last updated: 2026-11-12 (fork `dev` at d81501d98).*
 
 A Python 3.15 playground. Its main use so far is a local basedpyright fork that gives each key of a dict or a
 `frozendict` (PEP 814), and of PyTorch's `nn.ModuleDict`, its own type, inferred from how the dict is built.
@@ -69,6 +69,7 @@ A dict can change, so its shape can't be exact. The fork uses one rule:
 | Methods with literal keys | `.update(k=v)`, `.update({...})`, `\|=`, `.pop('k')`, `.setdefault(...)`, `.clear()`; `.get()`, `.copy()`, `{**d}`, `d \| {...}` keep it | Writes in the same function |
 | `.update()` works like `\|=` | `user = {'name': 'rahul'}; user.update({'b': 20})` is `dict[{'name': str, 'b': int}]`, no error (stock pyright rejects the `int`); a declared `user: dict[str, str]` keeps the error | (try it in the editor) |
 | Dict comprehensions over known keys | `{s: f(s) for s in rows}` (also `rows.keys()`, `k, v in rows.items()`, `['a', 'b']`, `[('a', x), ('b', y)]`) has `rows`' keys, each with the value's type; with an `if` clause it's plain | A dict comprehension over known keys |
+| `dict(zip(keys, values))` | `dict(zip(('name', 'age'), load_person()))` with `load_person() -> tuple[str, int]` is `dict[{'name': str, 'age': int}]`, paired by position (`frozendict(zip(...))` too). Keys written in the call, values a fixed-length tuple of the same length; keys from a variable, or values of unknown length (a list), stay plain | dict(zip(keys, values)) |
 | Branches | after an `if`, a key keeps every type it can have; a key set in one branch only is forgotten | Branches |
 | Keys the checker can't read | `scores[subject] = 100` forgets every key | Unknown keys |
 | Inferred return types keep the shape | `def make(): d = {...}; ...; return d` | Inferred return types |

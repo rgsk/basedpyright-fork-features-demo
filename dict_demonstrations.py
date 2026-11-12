@@ -69,6 +69,18 @@ reveal_type(runs['trained'])  # dict[{'train': int, 'val': int}]
 # With an `if` clause, or a key other than the loop variable, it's a plain dict as today
 reveal_type({s: 0 for s in splits if s != 'val'})  # dict[str, int]
 
+# %% 🆕 dict(zip(keys, values)) pairs literal keys with a fixed-length tuple by position
+def load_person() -> tuple[str, int]:
+    return 'rahul', 27
+
+
+person = dict(zip(('name', 'age'), load_person()))
+reveal_type(person)  # dict[{'name': str, 'age': int}]
+reveal_type(person['age'])  # int (stock pyright: str | int)
+# Keys from a variable, or values of unknown length (zip stops at the shorter one): plain as today
+keys = ('name', 'age')
+reveal_type(dict(zip(keys, load_person())))  # dict[Literal['name', 'age'], str | int]
+
 # %% 🆕 Branches: a key keeps every type it can have; a key set in one branch only is forgotten
 point = {'x': 0, 'y': 0, 'label': 'origin'}
 if len(user) > 3:
