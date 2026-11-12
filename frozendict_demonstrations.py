@@ -67,14 +67,15 @@ except AttributeError as e:
     print('AttributeError:', e)
 
 
-# %% Declared return types drop the shape (an inferred one keeps it, see make() above)
+# %% 🆕 A declared return type bounds the shape: callers see the keys, each with the declared value type
 
 
-def make_user_plain() -> frozendict[str, str | int]:  # the declared type is what callers see
+def make_user_declared() -> frozendict[str, str | int]:
     return frozendict(name='a', age=1)
 
 
-reveal_type(make_user_plain()['age'])  # str | int
+reveal_type(make_user_declared())  # frozendict[{'name': str | int, 'age': str | int}]
+make_user_declared()['nme']  # error: "nme" is not a defined key
 
 # %% ✅ Like a TypedDict: ** unpacking, match patterns, narrowing, completion
 # Each feature is shown next to the TypedDict version it matches.

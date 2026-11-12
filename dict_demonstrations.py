@@ -17,7 +17,7 @@ Each reveal_type(...) shows the checker's result as a note in the editor (and pr
 type when run). Hover any expression to see its type.
 """
 
-from typing import reveal_type
+from typing import Any, reveal_type
 
 # %% 🆕 A dict literal remembers its keys, and each key has its own type
 user = {'name': 'rahul', 'age': 27, 'details': {'sex': 'male'}}
@@ -100,6 +100,33 @@ def make():
 
 reveal_type(make())  # dict[{'name': str, 'age': int, 'admin': bool}]
 reveal_type(make()['age'])  # int
+
+# %% 🆕 A dict return annotation bounds the shape instead of erasing it
+# Each key gets the declared value type; with a bare dict, Any or object, the inferred one.
+
+
+def rates() -> dict[str, float]:
+    return {'lr': 1, 'momentum': 0.9}
+
+
+def run_train(lr: float) -> dict:
+    return {'weights': [lr, lr * 2], 'log': 'done'}
+
+
+def config() -> dict[str, Any]:
+    return {'lr': 0.1, 'epochs': 3}
+
+
+reveal_type(rates())  # dict[{'lr': float, 'momentum': float}] (stock: dict[str, float])
+reveal_type(run_train(0.1)['weights'])  # list[float] (stock: Unknown)
+reveal_type(config()['epochs'])  # int (stock: Any)
+
+
+def mixed(flag: bool) -> dict:  # returns with different keys: the declared type, as today
+    return {'a': 1} if flag else {'b': 'x'}
+
+
+reveal_type(mixed(True))  # dict[Unknown, Unknown]
 
 # %% 🆕 A global read in a function has the keys of the code (and notebook cells) above it
 

@@ -1,6 +1,6 @@
 # latest-python-features
 
-*Last updated: 2026-11-11 (fork `dev` at 10b2775b4).*
+*Last updated: 2026-11-12 (fork `dev` at 4b2381bbf).*
 
 A Python 3.15 playground. Its main use so far is a local basedpyright fork that gives each key of a dict or a
 `frozendict` (PEP 814), and of PyTorch's `nn.ModuleDict`, its own type, inferred from how the dict is built.
@@ -40,7 +40,8 @@ uses it everywhere. The keys are exact: a frozendict has exactly the keys in its
 | Narrowing by key | `if 'radius' in shape:` narrows a union of shapes | Like a TypedDict |
 | `fromkeys` | `frozendict.fromkeys(['lr', 'momentum'], 0.0)` is `{'lr': float, 'momentum': float}` | fromkeys |
 
-A declared type is what callers see: `def f() -> frozendict[str, int]` has no shape at its call sites.
+A declared return type bounds the shape instead of erasing it: `def f() -> frozendict[str, int]` returning
+`frozendict(a=1)` gives callers `frozendict[{'a': int}]`, so `f()['b']` is an error (see the dict section).
 
 ### Python < 3.15: the `frozendict` package
 
@@ -71,6 +72,7 @@ A dict can change, so its shape can't be exact. The fork uses one rule:
 | Branches | after an `if`, a key keeps every type it can have; a key set in one branch only is forgotten | Branches |
 | Keys the checker can't read | `scores[subject] = 100` forgets every key | Unknown keys |
 | Inferred return types keep the shape | `def make(): d = {...}; ...; return d` | Inferred return types |
+| Return annotations bound the shape | `-> dict[str, float]` returning `{'lr': 1}` gives callers `dict[{'lr': float}]` (each key gets the declared value type); a bare `-> dict`, `dict[str, Any]` or `dict[str, object]` keeps the inferred value types. Also through `Callable[P, R]` decorators and on methods. A key or value that doesn't fit, or returns with different keys, keep the declared type; returns are still checked against it | A dict return annotation bounds the shape |
 | Across notebook cells | a later cell sees the keys at the end of the cells before it, writes in between included (cells run in order) | (try it in a notebook) |
 | Globals read in a function | have the keys of the code and cells above the function (read top to bottom, as a notebook is: an assignment below doesn't count) | A global read in a function |
 | Dicts in lists, tuples and dict values | `rows = [summarize(l) for l in runs]` is `list[dict[{'best': float, ...}]]`, `rows[0]['best']` is `float`; `{name: summarize(l) for ...}` and `(d, 1)[0]` too. Still accepted wherever the plain type is (a `list[dict[str, float]]` parameter) | Dicts in a list |
@@ -129,7 +131,11 @@ and returns `Any`, and at runtime it wraps plain tensors in `Parameter`, so the 
 - **No shape annotations.** `frozendict[{'name': str}]` and `dict[{'name': str}]` are display only; in an
   annotation they're errors, as in every other checker. Annotations would make code require the fork. The draft
   inline `TypedDict[{...}]` (PEP 764) also raises `TypeError` at runtime on 3.15 wherever it's evaluated. Shapes
-  that cross functions are declared with a class instead.
+  that cross functions are declared with a class instead, or come from the function body.
+- **A return annotation is an upper bound, not a replacement.** `-> dict` or `-> dict[str, float]` keeps the keys
+  the body returns, so annotating a function costs no shape. The declared value type wins when it says
+  something (`float`, not the `int` of `{'lr': 1}`); `Any`, `object` or none keep the inferred ones. With very
+  different values per key, a bare `-> dict` reads better than `dict[str, A | B]`, which gives every key `A | B`.
 - **The checker reports an error only where the code would fail at runtime.** `user['nme']` on a frozendict raises
   `KeyError`, so it's an error. `user.get('nme')` returns `None`, so it isn't; its type is exactly `None`, and
   misuse such as `.upper()` is reported where it would actually fail.
