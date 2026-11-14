@@ -1,6 +1,6 @@
 # latest-python-features
 
-*Last updated: 2026-11-14 (fork `dev` at 6357da8a6).*
+*Last updated: 2026-11-15 (fork `dev` at 142325a6c).*
 
 A Python 3.15 playground. Its main use so far is a local basedpyright fork that gives each key of a dict or a
 `frozendict` (PEP 814), and of PyTorch's `nn.ModuleDict`, its own type, inferred from how the dict is built, and
@@ -144,7 +144,7 @@ cfg.prot      # error: Cannot access attribute "prot"
 |---|---|
 | Built from keywords, or a dict with known keys | `SimpleNamespace(a=1)`, `SimpleNamespace(row)` (3.13+), `SimpleNamespace(**row, b=2)`; an import alias (`SimpleNamespace as namespace`) works the same |
 | Shapes print as types | `SimpleNamespace[{host: str, port: int}]`: attribute names unquoted. Display only, like `dict[{...}]` (not subscriptable at runtime) |
-| Writes update the shape | `ns.x = 1` adds or retypes, `del ns.x` removes, `setattr(ns, 'x', v)` / `delattr(ns, 'x')` with a literal name too (a non-literal name makes it plain); `SimpleNamespace()` filled attribute by attribute |
+| Writes update the shape | `ns.x = 1` adds or retypes, `del ns.x` removes, `setattr(ns, 'x', v)` / `delattr(ns, 'x')` with a literal name too (a non-literal name makes it plain); also through a path (`app.db.port = 1`, `del app.db.host`, `app.cfg['k'] = v` update `app`'s shape); `SimpleNamespace()` filled attribute by attribute |
 | Typo'd or deleted attributes are errors | it raises `AttributeError` at runtime; class attributes (`ns.__dict__`) still work |
 | Fits Protocols | `greet(SimpleNamespace(id=1, name='a'))` for `class HasName(Protocol): id: int; name: str`; a missing or wrong-typed attribute is an error. Attribute types are inferred, so invariance isn't enforced |
 | `vars(ns)` | `dict[{'id': int, 'name': str}]` |

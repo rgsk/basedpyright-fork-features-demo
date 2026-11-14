@@ -61,6 +61,9 @@ reveal_type(app.db.port)  # int
 reveal_type(app.flags['beta'])  # bool
 app.db.user = 'admin'
 reveal_type(app.db)  # SimpleNamespace[{host: str, port: int, user: str}]
+app.db.port = '5433'  # writes and deletes through a path change the outer shape too
+del app.db.host
+reveal_type(app)  # SimpleNamespace[{name: str, db: SimpleNamespace[{port: str, user: str}], flags: dict[{'beta': bool}]}]
 
 rows = [SimpleNamespace(id=1), SimpleNamespace(id=2)]
 reveal_type(rows[0].id)  # int
