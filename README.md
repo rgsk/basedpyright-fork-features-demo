@@ -1,9 +1,10 @@
 # latest-python-features
 
-*Last updated: 2026-11-12 (fork `dev` at d81501d98).*
+*Last updated: 2026-11-14 (fork `dev` at 43325f771).*
 
 A Python 3.15 playground. Its main use so far is a local basedpyright fork that gives each key of a dict or a
-`frozendict` (PEP 814), and of PyTorch's `nn.ModuleDict`, its own type, inferred from how the dict is built.
+`frozendict` (PEP 814), and of PyTorch's `nn.ModuleDict`, its own type, inferred from how the dict is built, and
+does the same for the attributes of a `types.SimpleNamespace`.
 
 **The rule for the fork: code must never need it.** It only infers; it adds no new syntax. Other checkers see plain
 `dict[str, ...]` and `frozendict[str, ...]` types and lose only precision. To declare a shape, use a class
@@ -13,6 +14,7 @@ A Python 3.15 playground. Its main use so far is a local basedpyright fork that 
 |---|---|---|
 | [frozendict_demonstrations.py](frozendict_demonstrations.py) | frozendicts: exact shapes, typo'd keys are errors | 2 |
 | [dict_demonstrations.py](dict_demonstrations.py) | plain dicts remember their keys; writes update them | 2 |
+| [simplenamespace_demonstrations.py](simplenamespace_demonstrations.py) | `SimpleNamespace` remembers its attributes; typos are errors; fits Protocols | 5 |
 
 Each `reveal_type(...)` line has the checker's result in a comment, each intended error is marked, and both files
 run as-is.
@@ -127,9 +129,35 @@ and returns `Any`, and at runtime it wraps plain tensors in `Parameter`, so the 
 `~/Documents/codes/ml/dream-robot/rough/dino_parts.py` uses it (`student`, and `teacher` made from it with
 `copy.deepcopy(...).requires_grad_(False)`).
 
+## types.SimpleNamespace: the attributes the checker has seen
+
+Stock basedpyright types every attribute of a `SimpleNamespace` as `Any`, and rejects one passed where a `Protocol`
+is expected. The fork keeps its attributes the way it keeps a dict's keys:
+
+```python
+cfg = SimpleNamespace(host='localhost', port=8080)   # SimpleNamespace[{host: str, port: int}]
+cfg.port      # int
+cfg.prot      # error: Cannot access attribute "prot"
+```
+
+| Feature | Example |
+|---|---|
+| Built from keywords, or a dict with known keys | `SimpleNamespace(a=1)`, `SimpleNamespace(row)` (3.13+), `SimpleNamespace(**row, b=2)`; an import alias (`SimpleNamespace as namespace`) works the same |
+| Shapes print as types | `SimpleNamespace[{host: str, port: int}]`: attribute names unquoted. Display only, like `dict[{...}]` (not subscriptable at runtime) |
+| Writes update the shape | `ns.x = 1` adds or retypes, `del ns.x` removes, `setattr(ns, 'x', v)` / `delattr(ns, 'x')` with a literal name too (a non-literal name makes it plain); `SimpleNamespace()` filled attribute by attribute |
+| Typo'd or deleted attributes are errors | it raises `AttributeError` at runtime; class attributes (`ns.__dict__`) still work |
+| Fits Protocols | `greet(SimpleNamespace(id=1, name='a'))` for `class HasName(Protocol): id: int; name: str`; a missing or wrong-typed attribute is an error. Attribute types are inferred, so invariance isn't enforced |
+| `vars(ns)` | `dict[{'id': int, 'name': str}]` |
+| Nesting | namespaces and dicts inside namespaces, and namespaces in lists, keep their shapes; `app.db.user = 'x'` updates `app.db` |
+| Like a dict elsewhere | attribute completion (`cfg.` offers `host`, `port` with their types), branches (an attribute set in one branch only is forgotten), notebook cells, globals read in a function (where a missing attribute isn't an error); attributes (`self.cfg`) and parameters are plain |
+
+**Known hole**, the same one as dicts and ModuleDict: an attribute added where the checker can't see it (a function
+like `add_extra(cfg)`, an alias) is reported as missing although it works at runtime. Only `types.SimpleNamespace`
+itself gets a shape, not subclasses or `argparse.Namespace`.
+
 ## Design decisions
 
-- **No shape annotations.** `frozendict[{'name': str}]` and `dict[{'name': str}]` are display only; in an
+- **No shape annotations.** `frozendict[{'name': str}]`, `dict[{'name': str}]` and `SimpleNamespace[{name: str}]` are display only; in an
   annotation they're errors, as in every other checker. Annotations would make code require the fork. The draft
   inline `TypedDict[{...}]` (PEP 764) also raises `TypeError` at runtime on 3.15 wherever it's evaluated. Shapes
   that cross functions are declared with a class instead, or come from the function body.

@@ -106,3 +106,38 @@ class Patched(nn.Module):
 assignment in another method makes it plain); README's ModuleDict table ("attributes are plain" row).
 
 **Size:** small to medium.
+
+## argparse.Namespace shapes from `add_argument` calls
+
+Proposed 2026-11-14, after SimpleNamespace shapes. `args.lr`, `args.epochs`, ... are `Any` today, so a typo'd
+option name only fails at runtime. The parser's `add_argument` calls say exactly which attributes `parse_args()`
+returns:
+
+```python
+p = argparse.ArgumentParser()
+p.add_argument('--lr', type=float, default=1e-3)
+p.add_argument('--seed', type=int)              # no default: may be None
+p.add_argument('--use-amp', action='store_true')
+
+args = p.parse_args()
+# Namespace[{lr: float, seed: int | None, use_amp: bool}]   (stock: Namespace, every attribute Any)
+args.learning_rate   # error: no such attribute (AttributeError at runtime)
+args.seed + 1        # error: seed may be None
+```
+
+**Rules:**
+- Name: the first long option (`-v, --verbose` → `verbose`), dashes → underscores, `dest=` wins; positional
+  arguments by their name.
+- Type: `type=` (else `str`); `action='store_true'/'store_false'` → `bool`, `'count'` → `int`, `'append'` →
+  `list[T] | None`; `nargs='+'/'*'/N` → `list[T]`; `choices=[...]` of literals → `Literal[...]`.
+- `| None` unless it has a `default=` (its type), `required=True`, or is positional.
+- Follow the parser variable through its `add_argument` calls in the same function, like a dict's writes.
+  Falls back to a plain `Namespace` when it can't read them: a name or option that isn't a literal, subcommands
+  (`add_subparsers`), argument groups passed elsewhere, `parse_args(namespace=...)`.
+- `parse_known_args()` gives the shape to the first element of its tuple.
+- Missing attribute is an error, as for SimpleNamespace (same outer-scope exception).
+
+**Reuse:** SimpleNamespace's attribute entries (`simpleNamespaces.ts`: read hook, printer, completions, Protocol
+matching). New: collecting entries from the parser's call flow nodes (like `x.update(...)` for dicts).
+
+**Size:** medium (option-to-type mapping, plus following the parser variable).
