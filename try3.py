@@ -1,134 +1,67 @@
-"""TypedDict features that shaped frozendicts now match too (with the basedpyright fork).
-
-Each case: the TypedDict version and the frozendict version (same keys and types) both pass.
-"""
-
-from typing import Literal, TypedDict, Unpack, reveal_type
+# dict(zip(keys, values)): which cases get a shape
+from typing import reveal_type
 
 
-class UserTD(TypedDict):
-    name: str
-    age: int
+
+class Image: ...  # stands in for NDArray[np.uint8] (numpy isn't installed here)
 
 
-td: UserTD = {'name': 'rahul', 'age': 27}
-user = frozendict(name='rahul', age=27)  # frozendict[{'name': str, 'age': int}]
+def load_person() -> tuple[str, int]:
+    return 'rahul', 27
 
 
-# %% 1. Unpacking into parameters with **: each key goes to the parameter of the same name
+def load_cameras(name: str) -> tuple[Image, Image]: ...
 
 
-def greet(name: str, age: int) -> None:
-    print(name, age)
+def load_names() -> list[str]:
+    return ['a', 'b']
 
 
-def by_kwargs(**kwargs: Unpack[UserTD]) -> None:
-    print(kwargs)
+def load_rest() -> tuple[str, *tuple[int, ...]]:
+    return 'a', 1, 2
 
 
-# TypedDict: each key is checked against its own parameter
-greet(**td)  # ✅ ok
-by_kwargs(**td)  # ✅ ok
+# %% ✅ Supported: literal keys written in the call + a fixed-length tuple of the same length
 
-# frozendict: each key is checked against its own parameter too (it was str | int: 2 false errors)
-greet(**user)  # ✅ ok
-by_kwargs(**user)  # ✅ ok
+# Values from a function returning a tuple
+person = dict(zip(('name', 'age'), load_person()))
+reveal_type(person)  # dict[{'name': str, 'age': int}]
+reveal_type(person['age'])  # int
 
+# Keys as a list display instead of a tuple
+reveal_type(dict(zip(['name', 'age'], load_person())))  # dict[{'name': str, 'age': int}]
 
-# %% 2. Mapping patterns in match: the captured value has the key's type
+# Values as a tuple display (literals widened: 'rahul' -> str, 27 -> int)
+reveal_type(dict(zip(('name', 'age'), ('rahul', 27))))  # dict[{'name': str, 'age': int}]
 
-match td:
-    case {'age': td_age}:
-        reveal_type(td_age)  # ✅ TypedDict: int
+# Values from a variable typed as a tuple
+p = load_person()
+reveal_type(dict(zip(('name', 'age'), p)))  # dict[{'name': str, 'age': int}]
 
-match user:
-    case {'age': user_age}:
-        reveal_type(user_age)  # ✅ frozendict: int (it was str | int)
+# strict=True is allowed
+reveal_type(dict(zip(('name', 'age'), load_person(), strict=True)))  # dict[{'name': str, 'age': int}]
 
+# frozendict: exact keys, so a typo is an error
+cams = frozendict(zip(('top', 'wrist'), load_cameras('robot')))
+reveal_type(cams)  # frozendict[{'top': Image, 'wrist': Image}]
+cams['wirst']  # error: 'wirst' is not a key
 
-# %% 3. Narrowing a union by a literal field (tagged records)
+# %% ❌ Not supported: plain type, as stock pyright gives it
 
+# Keys from a variable
+keys = ('name', 'age')
+reveal_type(dict(zip(keys, load_person())))  # dict[Literal['name', 'age'], str | int]
 
-class CircleTD(TypedDict):
-    kind: Literal['circle']
-    radius: float
+# Values of unknown length (zip may stop early, so a key could be missing)
+reveal_type(dict(zip(('a', 'b'), load_names())))  # dict[Literal['a', 'b'], str]
 
+# Lengths differ
+reveal_type(dict(zip(('name',), load_person())))  # dict[Literal['name'], str | int]
+reveal_type(dict(zip(('a', 'b', 'c'), load_person())))  # dict[Literal['a', 'b', 'c'], str | int]
 
-class SquareTD(TypedDict):
-    kind: Literal['square']
-    side: float
+# Tuple with an unbounded part
+reveal_type(dict(zip(('a', 'b'), load_rest())))  # dict[Literal['a', 'b'], str | int]
 
-
-type Circle = frozendict[{'kind': Literal['circle'], 'radius': float}]  # noqa: F821
-type Square = frozendict[{'kind': Literal['square'], 'side': float}]  # noqa: F821
-
-
-def area_td(shape: CircleTD | SquareTD) -> float:
-    if shape['kind'] == 'circle':
-        reveal_type(shape)  # ✅ TypedDict: CircleTD
-        return 3.14 * shape['radius'] ** 2
-    return shape['side'] ** 2  # ✅ narrowed to SquareTD
-
-
-def area(shape: Circle | Square) -> float:
-    if shape['kind'] == 'circle':
-        reveal_type(shape)  # ✅ frozendict: Circle (it was Circle | Square)
-        return 3.14 * shape['radius'] ** 2  # ✅ (it was an error)
-    return shape['side'] ** 2  # ✅ narrowed to Square
-
-
-# %% 4. Narrowing a union by key: 'key' in x
-
-
-def describe_td(shape: CircleTD | SquareTD) -> float:
-    if 'radius' in shape:
-        reveal_type(shape)  # ✅ TypedDict: CircleTD
-        return shape['radius']
-    return shape['side']  # ✅ narrowed to SquareTD
-
-
-def describe(shape: Circle | Square) -> float:
-    if 'radius' in shape:
-        reveal_type(shape)  # ✅ frozendict: Circle (it was Circle | Square)
-        return shape['radius']  # ✅ (it was an error)
-    return shape['side']  # ✅ narrowed to Square
-
-
-# %% 5. Building one where the expected type needs a literal value (tagged records again)
-
-area_td(
-    {'kind': 'circle', 'radius': 1.0}
-)  # ✅ TypedDict: 'circle' is checked against Literal['circle']
-# ✅ frozendict: 'circle' stays Literal['circle'] where expected (it was widened to str)
-area(frozendict(kind='circle', radius=1.0))
-circle: Circle = frozendict(kind='circle', radius=1.0)  # ✅
-print(describe(circle))
-
-
-# %% 6. Key completion while building one whose type is known (try it: type at the marked spot)
-
-td_build: UserTD = {'name': 'rahul', 'age': 33}  # ✅ TypedDict: typing  {  offers 'name', 'age'
-td_call = UserTD(age=28, name='ds')  # ✅ TypedDict: typing  UserTD(  offers name=, age=
-
-type User = frozendict[{'name': str, 'age': int}]  # noqa: F821
-fd_build: User = frozendict(
-    {'name': '', 'age': 33}
-)  # ✅ frozendict: typing  {  offers 'name', 'age'
-fd_call: User = frozendict(
-    name='rahul', age=22
-)  # ✅ frozendict: typing  frozendict(  offers name=, age=
-
-
-# %% 7. Not supported by design: (key, value) pairs
-# Real code passes pairs that are already in a variable (zip(keys, values)), which the checker
-# can't know, and widening the literal types here would change what pyright already infers.
-reveal_type(frozendict([('name', 'rahul'), ('age', 27)]))
-# frozendict[Literal['name', 'age'], Literal['rahul', 27]]
-
-# %% 8. ✅ fromkeys with literal keys: each key gets the value's type (None without one)
-reveal_type(
-    frozendict.fromkeys(['lr', 'momentum'], 0.0)
-)  # frozendict[{'lr': float, 'momentum': float}]
-
-reveal_type(frozendict(**user, **frozendict.fromkeys(['lr', 'momentum'], 0.0)))
-reveal_type(frozendict.fromkeys(['b', 'a', 'b', 'c'], 1))
+# Keys that aren't literals
+name = input()
+reveal_type(dict(zip((name, 'age'), load_person())))  # dict[str, str | int]
