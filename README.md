@@ -1,6 +1,6 @@
 # latest-python-features
 
-*Last updated: 2026-11-14 (fork `dev` at 43325f771).*
+*Last updated: 2026-11-14 (fork `dev` at 6357da8a6).*
 
 A Python 3.15 playground. Its main use so far is a local basedpyright fork that gives each key of a dict or a
 `frozendict` (PEP 814), and of PyTorch's `nn.ModuleDict`, its own type, inferred from how the dict is built, and
@@ -149,7 +149,7 @@ cfg.prot      # error: Cannot access attribute "prot"
 | Fits Protocols | `greet(SimpleNamespace(id=1, name='a'))` for `class HasName(Protocol): id: int; name: str`; a missing or wrong-typed attribute is an error. Attribute types are inferred, so invariance isn't enforced |
 | `vars(ns)` | `dict[{'id': int, 'name': str}]` |
 | Nesting | namespaces and dicts inside namespaces, and namespaces in lists, keep their shapes; `app.db.user = 'x'` updates `app.db` |
-| Like a dict elsewhere | attribute completion (`cfg.` offers `host`, `port` with their types), branches (an attribute set in one branch only is forgotten), notebook cells, globals read in a function (where a missing attribute isn't an error); attributes (`self.cfg`) and parameters are plain |
+| Like a dict elsewhere | attribute completion (`cfg.` offers `host`, `port` with their types), branches (an attribute set in one branch only is forgotten), notebook cells, globals read in a function (where a missing attribute isn't an error, also in the namespaces nested in it: `app.db.x`), a `-> SimpleNamespace` return annotation keeps the shape the body returns; attributes (`self.cfg`) and parameters are plain |
 
 **Known hole**, the same one as dicts and ModuleDict: an attribute added where the checker can't see it (a function
 like `add_extra(cfg)`, an alias) is reported as missing although it works at runtime. Only `types.SimpleNamespace`
