@@ -82,6 +82,10 @@ def greet(u: HasName) -> str:
 print(greet(user))  # ok (stock: error, "id" is not present)
 print(greet(SimpleNamespace(id=2, name='bob', extra=None)))  # ok: extra attributes are fine
 
+# Completion inside SimpleNamespace( where a Protocol is expected offers the
+# attributes still missing (here name=, typed str; id is already given)
+carol: HasName = SimpleNamespace(id=3, name='carol')
+
 
 # %% 🆕 Errors that stock basedpyright misses (inside a function so this file runs)
 def _errors() -> None:

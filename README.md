@@ -1,6 +1,6 @@
 # latest-python-features
 
-*Last updated: 2026-11-15 (fork `dev` at 142325a6c).*
+*Last updated: 2026-11-15 (fork `dev` at 9057bcc86).*
 
 A Python 3.15 playground. Its main use so far is a local basedpyright fork that gives each key of a dict or a
 `frozendict` (PEP 814), and of PyTorch's `nn.ModuleDict`, its own type, inferred from how the dict is built, and
@@ -146,7 +146,7 @@ cfg.prot      # error: Cannot access attribute "prot"
 | Shapes print as types | `SimpleNamespace[{host: str, port: int}]`: attribute names unquoted. Display only, like `dict[{...}]` (not subscriptable at runtime) |
 | Writes update the shape | `ns.x = 1` adds or retypes, `del ns.x` removes, `setattr(ns, 'x', v)` / `delattr(ns, 'x')` with a literal name too (a non-literal name makes it plain); also through a path (`app.db.port = 1`, `del app.db.host`, `app.cfg['k'] = v` update `app`'s shape); `SimpleNamespace()` filled attribute by attribute |
 | Typo'd or deleted attributes are errors | it raises `AttributeError` at runtime; class attributes (`ns.__dict__`) still work |
-| Fits Protocols | `greet(SimpleNamespace(id=1, name='a'))` for `class HasName(Protocol): id: int; name: str`; a missing or wrong-typed attribute is an error. Attribute types are inferred, so invariance isn't enforced |
+| Fits Protocols | `greet(SimpleNamespace(id=1, name='a'))` for `class HasName(Protocol): id: int; name: str`; a missing or wrong-typed attribute is an error. Attribute types are inferred, so invariance isn't enforced. Completion in `cfg: Config = SimpleNamespace(...)` offers the Protocol's attributes not given yet (`n_layer=`, with its type), counting those from `**vars(defaults)` as given |
 | `vars(ns)` | `dict[{'id': int, 'name': str}]` |
 | Nesting | namespaces and dicts inside namespaces, and namespaces in lists, keep their shapes; `app.db.user = 'x'` updates `app.db` |
 | Like a dict elsewhere | attribute completion (`cfg.` offers `host`, `port` with their types), branches (an attribute set in one branch only is forgotten), notebook cells, globals read in a function (where a missing attribute isn't an error, also in the namespaces nested in it: `app.db.x`), a `-> SimpleNamespace` return annotation keeps the shape the body returns; attributes (`self.cfg`) and parameters are plain |
