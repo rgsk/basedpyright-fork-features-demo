@@ -87,6 +87,35 @@ print(greet(SimpleNamespace(id=2, name='bob', extra=None)))  # ok: extra attribu
 carol: HasName = SimpleNamespace(id=3, name='carol')
 
 
+# %% 🆕 vars() of a Protocol has its data attributes, so a copy keeps them
+class Account(Protocol):
+    id: int
+    email: str
+    password: str
+
+
+def hide(a: Account) -> SimpleNamespace:
+    p = SimpleNamespace(**vars(a))  # SimpleNamespace[{id: int, email: str, password: str}]
+    del p.password
+    return p  # SimpleNamespace[{id: int, email: str}]
+
+
+reveal_type(hide(SimpleNamespace(id=1, email='a@x.com', password='x')))  # SimpleNamespace[{id: int, email: str}]
+
+
+# %% 🆕 A return annotation keeps the shapes, also inside list[...], dict[...], | None, tuple[...]
+def people() -> list[SimpleNamespace]:
+    return [SimpleNamespace(id=i, name='ada') for i in range(2)]
+
+
+def find(i: int) -> SimpleNamespace | None:
+    return SimpleNamespace(id=i, name='ada') if i else None
+
+
+reveal_type(people())  # list[SimpleNamespace[{id: int, name: str}]]   (stock: list[SimpleNamespace])
+reveal_type(find(1))  # SimpleNamespace[{id: int, name: str}] | None
+
+
 # %% 🆕 Errors that stock basedpyright misses (inside a function so this file runs)
 def _errors() -> None:
     local = SimpleNamespace(host='h', port=1, debug=False)
@@ -97,6 +126,7 @@ def _errors() -> None:
     cfg.prot  # no error: a global read in a function may have gained attributes before the call
     greet(SimpleNamespace(id=3))  # error: "name" is not present
     greet(SimpleNamespace(id='3', name='x'))  # error: "id" is str
+    people()[0].nmae  # error: Cannot access attribute "nmae"
 
 
 print(cfg, app)

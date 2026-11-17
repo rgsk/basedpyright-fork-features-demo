@@ -1,6 +1,6 @@
 # latest-python-features
 
-*Last updated: 2026-11-15 (fork `dev` at 9057bcc86).*
+*Last updated: 2026-11-17 (fork `dev` at da83ce7ba).*
 
 A Python 3.15 playground. Its main use so far is a local basedpyright fork that gives each key of a dict or a
 `frozendict` (PEP 814), and of PyTorch's `nn.ModuleDict`, its own type, inferred from how the dict is built, and
@@ -75,7 +75,7 @@ A dict can change, so its shape can't be exact. The fork uses one rule:
 | Branches | after an `if`, a key keeps every type it can have; a key set in one branch only is forgotten | Branches |
 | Keys the checker can't read | `scores[subject] = 100` forgets every key | Unknown keys |
 | Inferred return types keep the shape | `def make(): d = {...}; ...; return d` | Inferred return types |
-| Return annotations bound the shape | `-> dict[str, float]` returning `{'lr': 1}` gives callers `dict[{'lr': float}]` (each key gets the declared value type); a bare `-> dict`, `dict[str, Any]` or `dict[str, object]` keeps the inferred value types. Also through `Callable[P, R]` decorators and on methods. A key or value that doesn't fit, or returns with different keys, keep the declared type; returns are still checked against it | A dict return annotation bounds the shape |
+| Return annotations bound the shape | `-> dict[str, float]` returning `{'lr': 1}` gives callers `dict[{'lr': float}]` (each key gets the declared value type); a bare `-> dict`, `dict[str, Any]` or `dict[str, object]` keeps the inferred value types. Also through `Callable[P, R]` decorators, on methods, and inside the annotation (`-> list[dict]`, `dict[str, dict]`, `dict | None`, `tuple[dict, int]`). A key or value that doesn't fit, or returns with different keys, keep the declared type; returns are still checked against it | A dict return annotation bounds the shape |
 | Across notebook cells | a later cell sees the keys at the end of the cells before it, writes in between included (cells run in order) | (try it in a notebook) |
 | Globals read in a function | have the keys of the code and cells above the function (read top to bottom, as a notebook is: an assignment below doesn't count) | A global read in a function |
 | Dicts in lists, tuples and dict values | `rows = [summarize(l) for l in runs]` is `list[dict[{'best': float, ...}]]`, `rows[0]['best']` is `float`; `{name: summarize(l) for ...}` and `(d, 1)[0]` too. Still accepted wherever the plain type is (a `list[dict[str, float]]` parameter) | Dicts in a list |
@@ -147,9 +147,9 @@ cfg.prot      # error: Cannot access attribute "prot"
 | Writes update the shape | `ns.x = 1` adds or retypes, `del ns.x` removes, `setattr(ns, 'x', v)` / `delattr(ns, 'x')` with a literal name too (a non-literal name makes it plain); also through a path (`app.db.port = 1`, `del app.db.host`, `app.cfg['k'] = v` update `app`'s shape); `SimpleNamespace()` filled attribute by attribute |
 | Typo'd or deleted attributes are errors | it raises `AttributeError` at runtime; class attributes (`ns.__dict__`) still work |
 | Fits Protocols | `greet(SimpleNamespace(id=1, name='a'))` for `class HasName(Protocol): id: int; name: str`; a missing or wrong-typed attribute is an error. Attribute types are inferred, so invariance isn't enforced. Completion in `cfg: Config = SimpleNamespace(...)` offers the Protocol's attributes not given yet (`n_layer=`, with its type), counting those from `**vars(defaults)` as given |
-| `vars(ns)` | `dict[{'id': int, 'name': str}]` |
+| `vars(ns)` | `dict[{'id': int, 'name': str}]`. `vars(a)` for `a: Account` (a Protocol) has the Protocol's data attributes (not methods, properties or ClassVars), so `SimpleNamespace(**vars(a))` copies them; an object that keeps them elsewhere (a property, `__slots__`) isn't caught |
 | Nesting | namespaces and dicts inside namespaces, and namespaces in lists, keep their shapes; `app.db.user = 'x'` updates `app.db` |
-| Like a dict elsewhere | attribute completion (`cfg.` offers `host`, `port` with their types), branches (an attribute set in one branch only is forgotten), notebook cells, globals read in a function (where a missing attribute isn't an error, also in the namespaces nested in it: `app.db.x`), a `-> SimpleNamespace` return annotation keeps the shape the body returns; attributes (`self.cfg`) and parameters are plain |
+| Like a dict elsewhere | attribute completion (`cfg.` offers `host`, `port` with their types), branches (an attribute set in one branch only is forgotten), notebook cells, globals read in a function (where a missing attribute isn't an error, also in the namespaces nested in it: `app.db.x`), a `-> SimpleNamespace` return annotation keeps the shape the body returns, also inside `list[SimpleNamespace]`, `dict[str, SimpleNamespace]`, `SimpleNamespace | None` and `tuple[...]` (not under an abstract `Sequence[...]`, nor for a list written inside the returned dict); attributes (`self.cfg`) and parameters are plain |
 
 **Known hole**, the same one as dicts and ModuleDict: an attribute added where the checker can't see it (a function
 like `add_extra(cfg)`, an alias) is reported as missing although it works at runtime. Only `types.SimpleNamespace`
