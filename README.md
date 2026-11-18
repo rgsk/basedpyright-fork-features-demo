@@ -13,10 +13,10 @@ does the same for the attributes of a `types.SimpleNamespace`. It also keeps PyT
 
 | Demo file | What it shows | Intended errors |
 |---|---|---|
-| [frozendict_demonstrations.py](frozendict_demonstrations.py) | frozendicts: exact shapes, typo'd keys are errors | 3 |
-| [dict_demonstrations.py](dict_demonstrations.py) | plain dicts remember their keys; writes update them | 2 |
-| [simplenamespace_demonstrations.py](simplenamespace_demonstrations.py) | `SimpleNamespace` remembers its attributes; typos are errors; fits Protocols | 6 |
-| [ml_demonstrations.py](ml_demonstrations.py) | PyTorch: module calls, `Sequential`, `ModuleList`, `ModuleDict`, `float ** float` | 5 |
+| [frozendict_demonstrations.py](demonstrations/frozendict_demonstrations.py) | frozendicts: exact shapes, typo'd keys are errors | 3 |
+| [dict_demonstrations.py](demonstrations/dict_demonstrations.py) | plain dicts remember their keys; writes update them | 2 |
+| [simplenamespace_demonstrations.py](demonstrations/simplenamespace_demonstrations.py) | `SimpleNamespace` remembers its attributes; typos are errors; fits Protocols | 6 |
+| [ml_demonstrations.py](demonstrations/ml_demonstrations.py) | PyTorch: module calls, `Sequential`, `ModuleList`, `ModuleDict`, `float ** float` | 5 |
 
 Each `reveal_type(...)` line has the checker's result in a comment, each intended error is marked, and every file
 runs as-is (`ml_demonstrations.py` needs torch, a dev dependency here).
@@ -260,7 +260,7 @@ itself gets a shape, not subclasses or `argparse.Namespace`.
   `editor.semanticTokenColorCustomizations`: `property.key:python` and `property.key.readonly:python`, both
   `#C9848E`. After a reload, a notebook may need one edit before its keys are coloured.
 - **Comparing against stock basedpyright:** set `basedpyright.fork.enabled` to `false`, or open
-  `../playground-stock` in a second window: basedpyright 1.40.2 from PyPI, symlinks to both demo files, and
+  `../playground-stock` in a second window: basedpyright 1.40.2 from PyPI, symlinks to the demo files, and
   `basedpyright.fork.enabled: false` in its `.vscode/settings.json`.
 - **Checking from the shell:**
-  `node ../basedpyright-frozendict/packages/pyright/index.js -p pyproject.toml *_demonstrations.py`
+  `node ../basedpyright-frozendict/packages/pyright/index.js -p pyproject.toml demonstrations/`

@@ -75,7 +75,10 @@ def make_user_declared() -> frozendict[str, str | int]:
 
 
 reveal_type(make_user_declared())  # frozendict[{'name': str | int, 'age': str | int}]
-make_user_declared()['nme']  # error: "nme" is not a defined key
+try:
+    make_user_declared()['nme']  # error: "nme" is not a defined key
+except KeyError:
+    pass
 
 # %% ✅ Like a TypedDict: ** unpacking, match patterns, narrowing, completion
 # Each feature is shown next to the TypedDict version it matches.
