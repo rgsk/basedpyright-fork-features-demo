@@ -7,11 +7,14 @@ dependencies = []
 
 [dependency-groups]
 dev = [
+    "einops>=0.8.2",
     "ipykernel>=7.4.0",
     # format and fixes on save in VS Code (rgsk.ruffgrid). No basedpyright needed: VS Code runs
     # the local fork through the user setting basedpyright.fork.enabled
+    "numpy>=2.5.5",
     "ruff>=0.16.2",
     "ruffgrid",
+    "torch>=2.15.0",
 ]
 
 [tool.basedpyright]

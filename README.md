@@ -1,10 +1,11 @@
 # latest-python-features
 
-*Last updated: 2026-11-17 (fork `dev` at da83ce7ba).*
+*Last updated: 2026-11-18 (fork `dev` at 8f6ab9040).*
 
 A Python 3.15 playground. Its main use so far is a local basedpyright fork that gives each key of a dict or a
 `frozendict` (PEP 814), and of PyTorch's `nn.ModuleDict`, its own type, inferred from how the dict is built, and
-does the same for the attributes of a `types.SimpleNamespace`.
+does the same for the attributes of a `types.SimpleNamespace`. It also keeps PyTorch code typed: calling a module,
+`nn.Sequential`, `nn.ModuleList` and `float ** float` no longer give `Any`.
 
 **The rule for the fork: code must never need it.** It only infers; it adds no new syntax. Other checkers see plain
 `dict[str, ...]` and `frozendict[str, ...]` types and lose only precision. To declare a shape, use a class
@@ -12,12 +13,13 @@ does the same for the attributes of a `types.SimpleNamespace`.
 
 | Demo file | What it shows | Intended errors |
 |---|---|---|
-| [frozendict_demonstrations.py](frozendict_demonstrations.py) | frozendicts: exact shapes, typo'd keys are errors | 2 |
+| [frozendict_demonstrations.py](frozendict_demonstrations.py) | frozendicts: exact shapes, typo'd keys are errors | 3 |
 | [dict_demonstrations.py](dict_demonstrations.py) | plain dicts remember their keys; writes update them | 2 |
-| [simplenamespace_demonstrations.py](simplenamespace_demonstrations.py) | `SimpleNamespace` remembers its attributes; typos are errors; fits Protocols | 5 |
+| [simplenamespace_demonstrations.py](simplenamespace_demonstrations.py) | `SimpleNamespace` remembers its attributes; typos are errors; fits Protocols | 6 |
+| [ml_demonstrations.py](ml_demonstrations.py) | PyTorch: module calls, `Sequential`, `ModuleList`, `ModuleDict`, `float ** float` | 5 |
 
-Each `reveal_type(...)` line has the checker's result in a comment, each intended error is marked, and both files
-run as-is.
+Each `reveal_type(...)` line has the checker's result in a comment, each intended error is marked, and every file
+runs as-is (`ml_demonstrations.py` needs torch, a dev dependency here).
 
 ## frozendict with per-key types
 
@@ -93,7 +95,41 @@ value type, as today. The only new errors come from precise reads, like `user['a
 `rename(user)` or `user.update(other)` through an alias, isn't seen, so the shape can be stale. So is a write
 through a loop variable: after `for r in rows: r['loss'] = 'n/a'`, `rows[0]['loss']` still reads as `float`.
 
-## PyTorch's nn.ModuleDict
+## PyTorch: modules keep their types
+
+Stock basedpyright loses most types in PyTorch code. torch declares `nn.Module.__call__` as
+`Callable[..., Any]`, leaves `Sequential.forward` unannotated, and types `ModuleList` items as `Module`; typeshed
+types `float ** float` as `Any`. So `layer(x)`, `mlp(x)`, `blocks[0]` and `d ** -0.5`, and everything computed from
+them, are `Any`: no completion, no errors. The fork:
+
+```python
+layer = nn.Linear(4, 8)
+layer(x)                     # Tensor            (stock: Any)
+mlp = nn.Sequential(nn.Linear(4, 16), nn.GELU(), nn.Linear(16, 4))
+mlp(x)                       # Tensor            (stock: Any)
+blocks = nn.ModuleList([Block(4) for _ in range(3)])
+blocks[0]                    # Block             (stock: Module)
+q @ k.transpose(-1, -2) * head_size**-0.5   # Tensor   (stock: Any)
+```
+
+| Feature | Example | Section in `ml_demonstrations.py` |
+|---|---|---|
+| Calling a module uses its `forward` | `Linear(3, 4)(x)` is `Tensor`; your own `forward`'s parameters and return type are checked and used; hover on `layer` in `layer(x)` shows `def layer(input: Tensor) -> Tensor`. A class with its own `__call__` keeps it; a module without its own `forward` stays `Any` | Calling a module |
+| `Sequential` remembers its modules | `Sequential[Linear, GELU, Linear]`; a call passes the argument through each module's call in turn (nested `Sequential`s and your own modules too); hover shows the first module's parameters and the chain's return type. If a module can't take what the one before returns, it's `Unknown`, as today | Sequential remembers its modules |
+| `ModuleList` remembers its module type | `ModuleList[Block]`: `for b in blocks`, `blocks[0]`, `zip`/`enumerate`/`list(...)` give `Block`, a slice keeps `ModuleList[Block]`; from `list[nn.Module]` it's `ModuleList[Module]` | ModuleList remembers its module type |
+| Methods that return self keep them | `.to(dev)`, `.cuda()`, `.train()`, ... (declared `-> Self`) | Sequential remembers its modules |
+| Attributes keep them | `self.blocks = nn.ModuleList([...])` in `__init__` is `ModuleList[Block]` in `forward`, so `self.video: list[Block] = nn.ModuleList(...)` (an error anyway: a `ModuleList` isn't a `list`) isn't needed. A `ModuleDict` attribute is still plain (see roadmap.md) | Inside a model |
+| Return annotations keep them | `def make_backbone() -> nn.Sequential:` returning `nn.Sequential(...)` gives callers its modules; `-> nn.ModuleList` and `-> nn.ModuleDict` too. Bodies that build different ones, or ones the checker can't see (`nn.Sequential(*layers)`), keep the plain annotation | A return annotation keeps what the body builds |
+| Different modules are different types | `Sequential[Linear] \| Sequential[ReLU]` keeps both, like dicts with different keys | (in the fork's tests) |
+| `float ** float` is `float` | `head_size ** -0.5`, `32 ** 0.5`, `x ** y`, `pow(x, 0.5)`, `x **= 0.5` are `float` (stock: `Any`), so `scores = q @ k.T * head_size**-0.5` stays a `Tensor`. Literal numbers that make a complex number give `complex` (`(-8) ** 0.5`), and `(-8) ** 2.0` is `float` (stock: `complex`) | float ** float is float |
+
+What stays as today: `int ** int` with a non-literal exponent is `Any` (it's an `int` or a `float` depending on
+the exponent's sign). **Known holes:** a non-literal negative base with a fractional exponent is typed `float`
+although it gives a `complex` at runtime; modules added after construction (`mlp.append(...)`,
+`blocks.extend(...)`) aren't seen, so the remembered modules can be stale; and a typo'd attribute on a module
+(`blocks[0].prj`) is never an error, in stock either, because `nn.Module` defines `__getattr__`.
+
+### nn.ModuleDict
 
 Stock basedpyright types every read of a `ModuleDict` as `Module`, because that's what its `__getitem__` declares.
 The fork gives a `ModuleDict` built from a dict with literal keys the same per-key shape:
@@ -112,7 +148,7 @@ core['bdy']    # error: Could not access item in ModuleDict
 | Typo'd keys are errors | `core['bdy']`; a key that isn't a literal reads as `Module`, as today |
 | `.update()` adds keys | `enc.update(dict(film=nn.Linear(8, 256)))` makes `enc['film']` a `Linear` (its only way to add keys: no `\|=`) |
 | Other writes make it plain | `core['x'] = ...`, `del core['x']`, `.update()` with unknown keys, `.pop()`, `.clear()`, `.add_module()`, `.register_module()`: from there on it's a plain `ModuleDict` and reads are `Module` |
-| Like a dict elsewhere | key completion, key hover, inferred return types, notebook cells and globals read in a function work; attributes (`self.core`) are plain |
+| Like a dict elsewhere | key completion, key hover, inferred return types, a `-> nn.ModuleDict` return annotation, notebook cells and globals read in a function work; attributes (`self.core`) are plain |
 
 Two rules differ from a dict's, so that a missing key can be an error:
 
@@ -200,9 +236,9 @@ itself gets a shape, not subclasses or `argparse.Namespace`.
 - **The fork:** `../basedpyright-frozendict` (local only). All work is on one branch, `dev`, on top of
   basedpyright `main`; commit there and build from it. The history has one commit per step (frozendict
   support, the PyPI package, dict keys, dropping the annotations, notebook cells, multi-line hover, `{}` shapes,
-  key colouring, go-to-definition on keys, the VS Code switch, `nn.ModuleDict`, ...).
+  key colouring, go-to-definition on keys, the VS Code switch, `nn.ModuleDict`, PyTorch module types, ...).
 
-  Rebuild with `npx pnpm@11.21.0 run build:cli:dev` in the fork, then restart the server
+  Rebuild with `npx rspack build -c rspack.config.js --mode production` in `packages/pyright`, then restart the server
   (*BasedPyright: Restart Server*) or reload VS Code. Run tests one worker at a time (`jest --runInBand`); a full
   parallel run can take the machine down.
 - **VS Code runs the fork in every project** through one user setting:
@@ -227,4 +263,4 @@ itself gets a shape, not subclasses or `argparse.Namespace`.
   `../playground-stock` in a second window: basedpyright 1.40.2 from PyPI, symlinks to both demo files, and
   `basedpyright.fork.enabled: false` in its `.vscode/settings.json`.
 - **Checking from the shell:**
-  `node ../basedpyright-frozendict/packages/pyright/index.js -p pyproject.toml frozendict_demonstrations.py dict_demonstrations.py`
+  `node ../basedpyright-frozendict/packages/pyright/index.js -p pyproject.toml *_demonstrations.py`
