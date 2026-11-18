@@ -1,8 +1,9 @@
-# latest-python-features
+# basedpyright-fork-features-demo
 
 *Last updated: 2026-11-18 (fork `dev` at 8f6ab9040).*
 
-A Python 3.15 playground. Its main use so far is a local basedpyright fork that gives each key of a dict or a
+Docs and demonstrations for a basedpyright fork, [rgsk/basedpyright (branch `dev`)](https://github.com/rgsk/basedpyright/tree/dev),
+that gives each key of a dict or a
 `frozendict` (PEP 814), and of PyTorch's `nn.ModuleDict`, its own type, inferred from how the dict is built, and
 does the same for the attributes of a `types.SimpleNamespace`. It also keeps PyTorch code typed: calling a module,
 `nn.Sequential`, `nn.ModuleList` and `float ** float` no longer give `Any`.
@@ -19,7 +20,8 @@ does the same for the attributes of a `types.SimpleNamespace`. It also keeps PyT
 | [ml_demonstrations.py](demonstrations/ml_demonstrations.py) | PyTorch: module calls, `Sequential`, `ModuleList`, `ModuleDict`, `float ** float` | 5 |
 
 Each `reveal_type(...)` line has the checker's result in a comment, each intended error is marked, and every file
-runs as-is (`ml_demonstrations.py` needs torch, a dev dependency here).
+runs as-is (`ml_demonstrations.py` needs torch, a dev dependency here). [scratch/](scratch/) holds the
+playground files and notebooks the features were tried out in; they aren't kept tidy.
 
 ## frozendict with per-key types
 
@@ -233,8 +235,9 @@ itself gets a shape, not subclasses or `argparse.Namespace`.
 
 ## Setup
 
-- **The fork:** `../basedpyright-frozendict` (local only). All work is on one branch, `dev`, on top of
-  basedpyright `main`; commit there and build from it. The history has one commit per step (frozendict
+- **The fork:** [github.com/rgsk/basedpyright](https://github.com/rgsk/basedpyright/tree/dev), cloned next to
+  this repo as `../basedpyright-frozendict` (the paths below assume that). All work is on one branch, `dev`, on
+  top of basedpyright `main`; commit there and build from it. The history has one commit per step (frozendict
   support, the PyPI package, dict keys, dropping the annotations, notebook cells, multi-line hover, `{}` shapes,
   key colouring, go-to-definition on keys, the VS Code switch, `nn.ModuleDict`, PyTorch module types, ...).
 
@@ -262,5 +265,8 @@ itself gets a shape, not subclasses or `argparse.Namespace`.
 - **Comparing against stock basedpyright:** set `basedpyright.fork.enabled` to `false`, or open
   `../playground-stock` in a second window: basedpyright 1.40.2 from PyPI, symlinks to the demo files, and
   `basedpyright.fork.enabled: false` in its `.vscode/settings.json`.
+- **ruffgrid:** `pyproject.toml` takes the dev dependency `ruffgrid` (the VS Code formatter integration) from a
+  sibling folder, `../ruffgrid`. Without that folder, `uv sync` fails: remove the `ruffgrid` lines from
+  `[dependency-groups]` and `[tool.uv.sources]` first. Nothing else here needs it.
 - **Checking from the shell:**
   `node ../basedpyright-frozendict/packages/pyright/index.js -p pyproject.toml demonstrations/`
