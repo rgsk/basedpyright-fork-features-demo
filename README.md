@@ -1,6 +1,6 @@
 # basedpyright-fork-features-demo
 
-*Last updated: 2026-11-19 (fork `dev` at 957693354).*
+*Last updated: 2026-11-19 (fork `dev` at 10d4c6ea9).*
 
 Docs and demonstrations for a basedpyright fork, [rgsk/basedpyright (branch `dev`)](https://github.com/rgsk/basedpyright/tree/dev),
 that gives each key of a dict or a
@@ -8,6 +8,8 @@ that gives each key of a dict or a
 does the same for the attributes of a `types.SimpleNamespace`. It also keeps PyTorch code typed: calling a module,
 `nn.Sequential`, `nn.ModuleList` and `float ** float` no longer give `Any`, and neither do the axes of matplotlib's
 `plt.subplots(n, m)`.
+It also fixes a stock bug: VS Code showed no errors in notebooks (`.ipynb`), because the server answered every cell's
+diagnostics request with an empty list.
 
 **The rule for the fork: code must never need it.** It only infers; it adds no new syntax. Other checkers see plain
 `dict[str, ...]` and `frozendict[str, ...]` types and lose only precision. To declare a shape, use a class
@@ -254,8 +256,6 @@ itself gets a shape, not subclasses or `argparse.Namespace`.
 
 ## Known gaps
 
-- **Notebooks:** VS Code shows no basedpyright diagnostics in `.ipynb` files (an upstream pull-diagnostics issue;
-  the server computes them). Hover and completion work. Use `.py` files to see errors.
 - **Literals in tuples:** `frozendict(size=(1, 2))` keeps `tuple[Literal[1], Literal[2]]`, because stock pyright
   solves the value type that way for keyword arguments. A dict display `frozendict({'size': (1, 2)})` gives
   `tuple[int, int]`. (`dict(size=(1, 2))` is widened to `tuple[int, int]`.)
