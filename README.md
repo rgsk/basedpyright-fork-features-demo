@@ -1,6 +1,6 @@
 # basedpyright-fork-features-demo
 
-*Last updated: 2026-11-18 (fork `dev` at 8f6ab9040).*
+*Last updated: 2026-11-19 (fork `dev` at 53099326e).*
 
 Docs and demonstrations for a basedpyright fork, [rgsk/basedpyright (branch `dev`)](https://github.com/rgsk/basedpyright/tree/dev),
 that gives each key of a dict or a
@@ -117,7 +117,7 @@ q @ k.transpose(-1, -2) * head_size**-0.5   # Tensor   (stock: Any)
 | Feature | Example | Section in `ml_demonstrations.py` |
 |---|---|---|
 | Calling a module uses its `forward` | `Linear(3, 4)(x)` is `Tensor`; your own `forward`'s parameters and return type are checked and used; hover on `layer` in `layer(x)` shows `def layer(input: Tensor) -> Tensor`. A class with its own `__call__` keeps it; a module without its own `forward` stays `Any` | Calling a module |
-| `Sequential` remembers its modules | `Sequential[Linear, GELU, Linear]`; a call passes the argument through each module's call in turn (nested `Sequential`s and your own modules too); hover shows the first module's parameters and the chain's return type. If a module can't take what the one before returns, it's `Unknown`, as today | Sequential remembers its modules |
+| `Sequential` remembers its modules | `Sequential[Linear, GELU, Linear]`; a call passes the argument through each module's call in turn (nested `Sequential`s and your own modules too); hover shows the first module's parameters and the chain's return type. If a module can't take what the one before returns, it's `Unknown`, as today. Built from a list (`nn.Sequential(*layers)`, or a plain `-> nn.Sequential`), the modules can't be seen, so a call gives back the argument's type: `Tensor` in, `Tensor` out (a guess: wrong only if the last module returns something else, like a `dict`) | Sequential remembers its modules |
 | `ModuleList` remembers its module type | `ModuleList[Block]`: `for b in blocks`, `blocks[0]`, `zip`/`enumerate`/`list(...)` give `Block`, a slice keeps `ModuleList[Block]`; from `list[nn.Module]` it's `ModuleList[Module]` | ModuleList remembers its module type |
 | Methods that return self keep them | `.to(dev)`, `.cuda()`, `.train()`, ... (declared `-> Self`) | Sequential remembers its modules |
 | Attributes keep them | `self.blocks = nn.ModuleList([...])` in `__init__` is `ModuleList[Block]` in `forward`, so `self.video: list[Block] = nn.ModuleList(...)` (an error anyway: a `ModuleList` isn't a `list`) isn't needed. A `ModuleDict` attribute is still plain (see roadmap.md) | Inside a model |

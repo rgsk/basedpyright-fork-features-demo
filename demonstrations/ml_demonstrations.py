@@ -11,7 +11,8 @@ The fork:
       def layer(input: Tensor) -> Tensor;
     - remembers what a Sequential, ModuleList or ModuleDict is built from, and keeps it through
       .to()/.cuda()/.train(), through self attributes, and through return annotations
-      (-> nn.Sequential);
+      (-> nn.Sequential); a Sequential built from a list (Sequential(*layers)) gives back
+      what it's called with;
     - types float ** float, int ** float and pow() of them as float (complex for literal
       numbers that make one).
 
@@ -60,6 +61,13 @@ reveal_type(nn.Sequential(mlp, Block(4))(x))  # tuple[Tensor, float]: nested, an
 reveal_type(mlp.to('cpu').train())  # Sequential[Linear, GELU, Linear]: .to(), .train() keep it
 # Hover on `mlp` in `mlp(x)`: def mlp(input: Tensor) -> Tensor (what the first module takes,
 # what the chain returns)
+
+# Built from a list, the modules can't be seen: a call gives back what it's given (Tensor in,
+# Tensor out), as for almost every real model.
+layers: list[nn.Module] = [nn.Linear(4, 16), nn.GELU(), nn.Linear(16, 4)]
+from_list = nn.Sequential(*layers)
+reveal_type(from_list)  # Sequential   (no modules to remember)
+reveal_type(from_list(x))  # Tensor   (stock: Any)
 
 # %% 🆕 ModuleList remembers its module type
 blocks = nn.ModuleList([Block(4) for _ in range(3)])
