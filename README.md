@@ -1,12 +1,13 @@
 # basedpyright-fork-features-demo
 
-*Last updated: 2026-11-19 (fork `dev` at 53099326e).*
+*Last updated: 2026-11-19 (fork `dev` at 957693354).*
 
 Docs and demonstrations for a basedpyright fork, [rgsk/basedpyright (branch `dev`)](https://github.com/rgsk/basedpyright/tree/dev),
 that gives each key of a dict or a
 `frozendict` (PEP 814), and of PyTorch's `nn.ModuleDict`, its own type, inferred from how the dict is built, and
 does the same for the attributes of a `types.SimpleNamespace`. It also keeps PyTorch code typed: calling a module,
-`nn.Sequential`, `nn.ModuleList` and `float ** float` no longer give `Any`.
+`nn.Sequential`, `nn.ModuleList` and `float ** float` no longer give `Any`, and neither do the axes of matplotlib's
+`plt.subplots(n, m)`.
 
 **The rule for the fork: code must never need it.** It only infers; it adds no new syntax. Other checkers see plain
 `dict[str, ...]` and `frozendict[str, ...]` types and lose only precision. To declare a shape, use a class
@@ -18,9 +19,10 @@ does the same for the attributes of a `types.SimpleNamespace`. It also keeps PyT
 | [dict_demonstrations.py](demonstrations/dict_demonstrations.py) | plain dicts remember their keys; writes update them | 2 |
 | [simplenamespace_demonstrations.py](demonstrations/simplenamespace_demonstrations.py) | `SimpleNamespace` remembers its attributes; typos are errors; fits Protocols | 6 |
 | [ml_demonstrations.py](demonstrations/ml_demonstrations.py) | PyTorch: module calls, `Sequential`, `ModuleList`, `ModuleDict`, `float ** float` | 5 |
+| [matplotlib_demonstrations.ipynb](demonstrations/matplotlib_demonstrations.ipynb) | matplotlib: the axes of `plt.subplots(n, m)` are `Axes`, not `Any` (a notebook, with its plots) | 2 |
 
 Each `reveal_type(...)` line has the checker's result in a comment, each intended error is marked, and every file
-runs as-is (`ml_demonstrations.py` needs torch, a dev dependency here). [scratch/](scratch/) holds the
+runs as-is (`ml_demonstrations.py` needs torch, the notebook matplotlib: both dev dependencies here). [scratch/](scratch/) holds the
 playground files and notebooks the features were tried out in; they aren't kept tidy.
 
 ## frozendict with per-key types
@@ -166,6 +168,34 @@ Only `torch.nn.ModuleDict` itself gets a shape, not its subclasses. `nn.Paramete
 and returns `Any`, and at runtime it wraps plain tensors in `Parameter`, so the argument types would be wrong.
 `~/Documents/codes/ml/dream-robot/rough/dino_parts.py` uses it (`student`, and `teacher` made from it with
 `copy.deepcopy(...).requires_grad_(False)`).
+
+## matplotlib: the axes of plt.subplots(n, m)
+
+matplotlib types `fig, axes = plt.subplots(3, 1)` as `tuple[Figure, Any]`: `axes` is a numpy array of `Axes`, and
+numpy's types can't say what an object array holds. So `axes[0]`, `for ax in axes` and every `ax.set_title(...)` after
+them are `Any`. The rest of matplotlib is already typed (`plt.subplots()` with no grid, `ax.plot`, `ax.imshow`,
+`fig.add_subplot`, ...), so this is the one gap. When the call says the grid's shape, the fork types the array:
+
+```python
+fig, axes = plt.subplots(3, 1)       # axes: ndarray[Axes, ndim=1]   (stock: Any)
+axes[0]                              # Axes                          (stock: Any)
+fig, grid = plt.subplots(2, 3)       # grid: ndarray[Axes, ndim=2]
+grid[0, 1]                           # Axes
+plt.subplots(1, len(pics), squeeze=False)   # ndarray[Axes, ndim=2], whatever the sizes
+```
+
+| Feature | Example |
+|---|---|
+| The shape comes from the call | Literal `nrows` and `ncols`: numpy drops the dimensions of size 1, so `(3, 1)` is 1-D and `(2, 3)` is 2-D. `squeeze=False` is always 2-D. `fig.subplots(...)` too |
+| Reading one plot gives `Axes` | `axes[0]`, `grid[0, 1]`, `grid[0][1]`, `axes.flat[2]`; `grid[0]` and `grid[:, 0]` are 1-D arrays of `Axes` |
+| Iterating gives `Axes` | `for ax in axes`, `zip(axes, pics)`, `enumerate(grid.flat)`, `fig, (top, bottom) = plt.subplots(2, 1)`; `for row in grid` gives 1-D arrays |
+| Flattening keeps it | `.flat` is `flatiter[Axes]`; `.ravel()` and `.flatten()` are `ndarray[Axes, ndim=1]`; `.tolist()` is `list[Axes]` or `list[list[Axes]]` |
+| Errors stock misses | `axes[0].set_titel(...)` (no such method), `axes[1].set_xlim(0, 'ten')` |
+
+What stays as today: sizes that aren't literal numbers with the default `squeeze=True` (`plt.subplots(3, n)` is
+1-D or 2-D depending on `n`, and a single `Axes` when every size is 1), so pass `squeeze=False` there; a `squeeze`
+that isn't a literal; and anything else on the array (`.shape`, `.T`, `.reshape(...)`). `ndarray[Axes, ndim=1]` is
+display only, not valid in annotations. The fork code is one file (`matplotlibAxes.ts`) plus a few calls into it.
 
 ## types.SimpleNamespace: the attributes the checker has seen
 

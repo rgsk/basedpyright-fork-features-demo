@@ -11,6 +11,7 @@ dev = [
     "ipykernel>=7.4.0",
     # format and fixes on save in VS Code (rgsk.ruffgrid). No basedpyright needed: VS Code runs
     # the local fork through the user setting basedpyright.fork.enabled
+    "matplotlib>=3.11.2",
     "numpy>=2.5.5",
     "ruff>=0.16.2",
     "ruffgrid",
